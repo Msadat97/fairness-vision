@@ -43,7 +43,7 @@ binary_cross_entropy = nn.BCEWithLogitsLoss(
 )
 optimizer = torch.optim.Adam(
     list(autoencoder.parameters()) + list(classifier.parameters()),
-    lr=args.learning_rate, weight_decay=args.weight_decay
+    lr=0.01, weight_decay=args.weight_decay
 )
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, 'min', patience=args.patience, factor=0.5

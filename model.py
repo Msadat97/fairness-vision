@@ -143,23 +143,24 @@ class AutoEncoder(nn.Module):
             param.requires_grad_(False)   
 
 
-class LogisticRegression(nn.Module):
-    def __init__(self, input_dim):
+class LatentClassifier(nn.Module):
+    def __init__(self, input_dim, num_classes):
         super().__init__()
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.linear = nn.Linear(input_dim, 1).to(device)
-        self.sigmoid = nn.Sigmoid().to(device)
+        self.linear = nn.Linear(input_dim, num_classes).to(device)
+        self.softmax = nn.Softmax(dim=1).to(device)
 
     def forward(self, x):
         return self.linear(x).squeeze()
 
     def predict(self, x):
-        return (self.sigmoid(self.linear(x)) >= 0.5).float().squeeze()
+        _, labels = torch.max(self.linear(x), dim=1)
+        return labels
 
     def logits(self, x):
-        return self.sigmoid(self.linear(x))
+        return self.softmax(self.linear(x))
 # from mnist import MnistLoader
 
 # m = MnistLoader()
