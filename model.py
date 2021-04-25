@@ -10,7 +10,7 @@ from torch.nn.modules.activation import ReLU
 class VAE(nn.Module):
     
     def __init__(self, latent_dim = 2, input_shape=(1, 1, 28, 28)):
-        super(VAE, self).__init__()
+        super().__init__()
         
         self.latent_dimension = latent_dim
         self.input_shape = input_shape
@@ -80,76 +80,89 @@ class VAE(nn.Module):
         return x_hat, mu, log_var
 
 
-class LatentEncoder(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, input_shape=(1, 1, 28, 28), num_classes=10) -> None:
-        super(LatentEncoder, self).__init__()
-        
+        super().__init__()
+
         kernel_size = 3
         filters = 64
-        drop_out_rate = 0.2
-        pool_size = 2
-        
+
         self.input_shape = input_shape
         self.num_classes = num_classes
-        
-        modules = nn.ModuleList()
-        
-        modules.append(nn.Conv2d(in_channels=1, out_channels=filters, kernel_size=kernel_size)),
-        modules.append(nn.ReLU())
-        # modules.append(nn.MaxPool2d(pool_size))
-        
+
+        encoder_modules = nn.ModuleList()
+
+        encoder_modules.append(nn.Conv2d(in_channels=1, out_channels=filters, kernel_size=kernel_size)),
+        encoder_modules.append(nn.ReLU())
+
         for _ in range(2):
-            modules.append(nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size)),
-            modules.append(nn.ReLU())
-            # modules.append(nn.MaxPool2d(pool_size))
-        
-        self.cnn = nn.Sequential(*modules)
-        
+            encoder_modules.append(nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size)),
+            encoder_modules.append(nn.ReLU())
+
+        self.encoder = nn.Sequential(*encoder_modules)
+
+    def forward(self, x):
+        return self.encoder(x)
+
+
+class Decoder(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+        kernel_size = 3
+        filters = 64
+
+        decoder_moduls = nn.ModuleList()
+
+        for _ in range(2):
+            decoder_moduls.append(nn.ConvTranspose2d(in_channels=filters,
+                           out_channels=filters, kernel_size=kernel_size)),
+            decoder_moduls.append(nn.ReLU())
+
+        decoder_moduls.append(
+            nn.ConvTranspose2d(in_channels=filters, out_channels=1, kernel_size=kernel_size)),
+        decoder_moduls.append(nn.ReLU())
+
+        self.decoder = nn.Sequential(*decoder_moduls)
+    
+    def forward(self, x):
+        return self.decoder(x)
+
+
+class LatentEncoder(nn.Module):
+    def __init__(self, input_shape=(1, 1, 28, 28), num_classes=10) -> None:
+        super().__init__()
+
+        self.input_shape = input_shape
+        self.num_classes = num_classes
+
+        self.encoder = Encoder(input_shape, num_classes)
+        self.decoder = Decoder()
+
+        drop_out_rate = 0.2
         self.shape, self.flatten_shape = self.get_shape()
-        
         self.classifier = nn.Sequential(
             nn.Dropout(p=drop_out_rate),
             nn.Linear(self.flatten_shape, self.num_classes)
         )
-        
+
     def get_shape(self):
         x = torch.randn(self.input_shape)
-        x = self.cnn(x)
+        x = self.encoder(x)
         return x.shape[1:], torch.prod(torch.tensor(x.shape)).item()
-    
+
+    def encode(self, x):
+        return self.encoder(x)
+
+    def decode(self, x):
+        return self.decoder(x)
+
     def forward(self, x):
-        x = self.cnn(x)
+        x = self.encoder(x)
         features = torch.flatten(x, start_dim=1)
         out = self.classifier(features)
         return features, out
-        
 
-class LatentDecoder(nn.Module):
-    def __init__(self) -> None:
-        super(LatentEncoder, self).__init__()
-
-        kernel_size = 3
-        filters = 64
-
-        modules = nn.ModuleList()
-        
-        for _ in range(2):
-            modules.append(nn.ConvTranspose2d(in_channels=filters,
-                           out_channels=filters, kernel_size=kernel_size)),
-            modules.append(nn.ReLU())
-
-        modules.append(
-            nn.ConvTranspose2d(in_channels=filters, out_channels=1, kernel_size=kernel_size)),
-        modules.append(nn.ReLU())
-
-        self.cnn = nn.Sequential(*modules)
-    
-    def forward(self, x):
-        x = self.cnn(x)
-        features = torch.flatten(x, start_dim=1)
-        out = self.classifier(features)
-        return features, out
-    
 
 class AutoEncoder(nn.Module):
     def __init__(self, vae: nn.Module, latent_encoder: nn.Module, freeze: bool = True):
@@ -189,9 +202,11 @@ class LatentClassifier(nn.Module):
     def logits(self, x):
         return self.softmax(self.linear(x))
 
-from mnist import MnistLoader
-m = MnistLoader()
-x = m.get_data('x_train')
-le = LatentEncoder()
-ld = LatentDecoder()
-print(ld)
+
+# from mnist import MnistLoader
+# m = MnistLoader()
+# x = m.get_data('x_train')
+# le = LatentEncoder()
+# enc = le.encode(x[0:1])
+# dec = le.decode(enc)
+# print(dec.shape)
