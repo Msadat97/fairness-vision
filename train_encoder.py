@@ -12,9 +12,7 @@ from mnist import MnistLoader
 
 from lcifr.code.constraints import ConstraintBuilder
 from dl2.training.supervised.oracles import DL2_Oracle
-from lcifr.code.metrics import equalized_odds, statistical_parity
 from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
-from utils import Statistics
 
 
 # parameters
