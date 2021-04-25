@@ -89,7 +89,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             autoencoder.train()
             classifier.train()
             
-        vae_latent = vae.encoder_forward(data_batch)
+        vae_latent, _, _ = vae.encoder_forward(data_batch)
         latent_data = autoencoder.forward(vae_latent)
 
         data_batch_dec = autoencoder.decode(latent_data)
@@ -114,7 +114,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         else:
             z_batches = None
 
-        vae_advs = vae.encoder_forward(z_batches[0])
+        vae_advs, _, _ = vae.encoder_forward(z_batches[0])
         latent_adv = autoencoder.encode(vae_advs).detach()
         l_inf_diffs.append(
             torch.abs(latent_data - latent_adv).max(1)[0].detach().cpu()
