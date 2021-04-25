@@ -13,6 +13,7 @@ from mnist import MnistLoader
 from lcifr.code.constraints import ConstraintBuilder
 from dl2.training.supervised.oracles import DL2_Oracle
 from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
+from lcifr.code.utils.statistics import Statistics
 
 
 # parameters
@@ -20,7 +21,7 @@ lr = 0.01
 dl2_lr = 1.0
 patience = 5
 weight_decay = 0.01
-constraint = ""
+constraint = "GeneralCategorical(0.01, 0.3, [])"
 dl2_iters = 25
 dl2_weight = 1.0
 dec_weight = 0.0
@@ -67,7 +68,6 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
 def run(autoencoder, classifier, optimizer, loader, split, epoch):
     predictions, targets, l_inf_diffs = list(), list(), list()
     tot_mix_loss, tot_ce_loss, tot_dl2_loss = Statistics.get_stats(3)
-    tot_l2_loss, tot_stat_par, tot_eq_odds = Statistics.get_stats(3)
 
     progress_bar = tqdm(loader)
 
@@ -97,11 +97,6 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         logits = classifier(latent_data)
         cross_entropy = cross_entropy(logits, targets_batch)
         predictions_batch = classifier.predict(latent_data)
-
-        stat_par = statistical_parity(predictions_batch, protected_batch)
-        eq_odds = equalized_odds(
-            targets_batch, predictions_batch, protected_batch
-        )
 
         predictions.append(predictions_batch.detach().cpu())
         targets.append(targets_batch.detach().cpu())
@@ -143,9 +138,6 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         tot_ce_loss.add(cross_entropy.mean().item())
         tot_dl2_loss.add(dl2_loss.mean().item())
         tot_mix_loss.add(mix_loss.mean().item())
-        tot_l2_loss.add(l2_loss.mean().item())
-        tot_stat_par.add(stat_par.mean().item())
-        tot_eq_odds.add(eq_odds.mean().item())
 
         progress_bar.set_description(
             f'[{split}] epoch={epoch:d}, ce_loss={tot_ce_loss.mean():.4f}, '
