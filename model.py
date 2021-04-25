@@ -181,7 +181,7 @@ class AutoEncoder(nn.Module):
     def encode(self, x):
         return self.encoder.encode(x)
 
-    def decode(self):
+    def decode(self, x):
         return self.encoder.decode(x)
 
     def _freeze_vae(self):
