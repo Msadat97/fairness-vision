@@ -165,7 +165,7 @@ class LatentEncoder(nn.Module):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, vae: nn.Module, latent_encoder: nn.Module, freeze: bool = True):
+    def __init__(self, vae: VAE, latent_encoder: LatentEncoder, freeze: bool = True):
         super().__init__()
         self.vae = vae
         self.encoder = latent_encoder
@@ -174,15 +174,19 @@ class AutoEncoder(nn.Module):
             self._freeze_vae()
     
     def forward(self, x):
-        x = self.vae.decoder_forward(x)
-        x, _ = self.encoder(x)
-        return x
+        return self.decode(self.encode(x))
 
     def encode(self, x):
-        return self.encoder.encode(x)
+        x = self.vae.decoder_forward(x)
+        x = self.encoder.encode(x)
+        x = torch.flatten(x, start_dim=1)
+        return x
 
     def decode(self, x):
-        return self.encoder.decode(x)
+        x = x.reshape((-1, *self.encoder.shape))
+        x = self.encoder.decode(x)
+        z, _, _ = self.vae.encoder_forward(x)
+        return z
 
     def _freeze_vae(self):
         for param in self.vae.parameters():

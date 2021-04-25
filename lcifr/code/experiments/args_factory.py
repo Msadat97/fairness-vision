@@ -7,10 +7,10 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     dl2lib.add_default_parser_args(parser)
-    parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--encoder-layers', type=int, nargs='+', required=True)
-    parser.add_argument('--decoder-layers', type=int, nargs='+', required=True)
-    parser.add_argument('--constraint', type=str, required=True)
+    parser.add_argument('--dataset', type=str)
+    parser.add_argument('--encoder-layers', type=int, nargs='+')
+    parser.add_argument('--decoder-layers', type=int, nargs='+')
+    parser.add_argument('--constraint', type=str)
     parser.add_argument('--num-epochs', type=int, default=100)
     parser.add_argument('--dec-weight', type=float, default=0.0)
     parser.add_argument('--dl2-weight', type=float, default=0.0)
@@ -33,7 +33,7 @@ def get_args():
 
     args = parser.parse_args()
 
-    if args.adversarial and args.delta is None:
-        parser.error('--adversarial and --delta must be given together')
+    # if args.adversarial and args.delta is None:
+    #     parser.error('--adversarial and --delta must be given together')
 
     return args

@@ -1,9 +1,11 @@
 from datetime import datetime
 from dl2.querying.models.cifar import models
 from os import makedirs, path
-
+from argparse import ArgumentParser
+from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import torch.utils.data
+from lcifr.code.experiments.args_factory import  get_args
 from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
                              confusion_matrix, f1_score)
 
@@ -18,6 +20,23 @@ from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from lcifr.code.utils.statistics import Statistics
 
 
+def get_latents(vae: VAE, data_loader, device='cpu'):
+    z_list = []
+    y_list = []
+    for batch in data_loader:
+        inputs, targets = batch
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+        z_batch, _, _ = vae.encoder_forward(inputs)
+        z_list.append(z_batch)
+        y_list.append(targets)
+    z_tensor = torch.cat(z_list)
+    y_tensor = torch.cat(y_list)
+    data_set = TensorDataset(z_tensor, y_tensor)
+    batch_size = data_loader.batch_size
+    return DataLoader(data_set, batch_size=batch_size)
+
+
 # parameters
 lr = 0.01
 dl2_lr = 1.0
@@ -27,12 +46,9 @@ dl2_iters = 25
 dl2_weight = 1.0
 dec_weight = 0.0
 num_epochs = 10
+args = get_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
-
-train_loader, val_loader = data.train_loader, data.val_loader
 
 vae = VAE(latent_dim=16)
 vae.load_state_dict(torch.load(
@@ -48,6 +64,10 @@ autoencoder.to(device)
 classifier = LatentClassifier(latent_encoder.flatten_shape, latent_encoder.num_classes)
 classifier.to(device)
 
+data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
+train_loader, val_loader = data.train_loader, data.val_loader
+train_loader, val_loader = get_latents(vae, train_loader), get_latents(vae, val_loader)
+
 constraint = GeneralCategoricalConstraint(model=autoencoder, delta=0.01, epsilon=0.3)
 oracle = DL2_Oracle(
     learning_rate=dl2_lr, net=autoencoder,
@@ -55,7 +75,7 @@ oracle = DL2_Oracle(
     constraint=constraint
 )
 
-cross_entropy = nn.CrossEntropyLoss()
+cre_loss = nn.CrossEntropyLoss()
 
 optimizer = torch.optim.Adam(
     list(autoencoder.parameters()) + list(classifier.parameters()),
@@ -76,6 +96,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         batch_size = data_batch.shape[0]
         data_batch = data_batch.to(device)
         targets_batch = targets_batch.to(device)
+        targets_batch = targets_batch.type(torch.long)
 
         x_batches, y_batches = list(), list()
         assert batch_size % oracle.constraint.n_tvars == 0
@@ -88,15 +109,14 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         if split == 'train':
             autoencoder.train()
             classifier.train()
-            
-        vae_latent, _, _ = vae.encoder_forward(data_batch)
-        latent_data = autoencoder.forward(vae_latent)
+
+        latent_data = autoencoder.encode(data_batch)
 
         data_batch_dec = autoencoder.decode(latent_data)
         l2_loss = torch.norm(data_batch_dec - data_batch, dim=1)
 
         logits = classifier(latent_data)
-        cross_entropy = cross_entropy(logits, targets_batch)
+        cross_entropy = cre_loss(logits, targets_batch)
         predictions_batch = classifier.predict(latent_data)
 
         predictions.append(predictions_batch.detach().cpu())
@@ -109,13 +129,12 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             domains = oracle.constraint.get_domains(x_batches, y_batches)
             z_batches = oracle.general_attack(
                 x_batches, y_batches, domains, num_restarts=1,
-                num_iters=dl2_iters,
+                num_iters=dl2_iters, args=args
             )
         else:
             z_batches = None
 
-        vae_advs, _, _ = vae.encoder_forward(z_batches[0])
-        latent_adv = autoencoder.encode(vae_advs).detach()
+        latent_adv = autoencoder.encode(z_batches[0]).detach()
         l_inf_diffs.append(
             torch.abs(latent_data - latent_adv).max(1)[0].detach().cpu()
         )
@@ -125,7 +144,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             classifier.train()
 
         _, dl2_loss, _ = oracle.evaluate(
-            x_batches, y_batches, z_batches
+            x_batches, y_batches, z_batches, args={}
         )
         mix_loss = torch.mean(
             cross_entropy + dl2_weight * dl2_loss +
