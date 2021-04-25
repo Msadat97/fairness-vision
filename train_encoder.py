@@ -14,7 +14,7 @@ from lcifr.code.constraints import ConstraintBuilder
 from dl2.training.supervised.oracles import DL2_Oracle
 from lcifr.code.experiments.args_factory import get_args
 from lcifr.code.metrics import equalized_odds, statistical_parity
-from model import VAE, LatentEncoder, AutoEncoder, LogisticRegression
+from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from utils import Statistics
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -28,7 +28,7 @@ vae.load_state_dict(torch.load('saved_models/vae_state_dict_v1'))
 
 latent_encoder = LatentEncoder()
 autoencoder = AutoEncoder(vae, latent_encoder)
-classifier = LogisticRegression(latent_encoder.flatten_shape)
+classifier = LatentClassifier(latent_encoder.flatten_shape, latent_encoder.num_labels)
 
 oracle = DL2_Oracle(
     learning_rate=1.0, net=autoencoder,
@@ -38,12 +38,11 @@ oracle = DL2_Oracle(
     )
 )
 
-binary_cross_entropy = nn.BCEWithLogitsLoss(
-    pos_weight=train_dataset.pos_weight('train') if args.balanced else None
-)
+cross_entropy = nn.CrossEntropyLoss()
+
 optimizer = torch.optim.Adam(
     list(autoencoder.parameters()) + list(classifier.parameters()),
-    lr=0.01, weight_decay=args.weight_decay
+    lr=0.01, weight_decay=0.01
 )
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, 'min', patience=args.patience, factor=0.5
