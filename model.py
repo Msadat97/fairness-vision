@@ -177,7 +177,13 @@ class AutoEncoder(nn.Module):
         x = self.vae.decoder_forward(x)
         x, _ = self.encoder(x)
         return x
-    
+
+    def encode(self, x):
+        return self.encoder.encode(x)
+
+    def decode(self):
+        return self.encoder.decode(x)
+
     def _freeze_vae(self):
         for param in self.vae.parameters():
             param.requires_grad_(False)   
