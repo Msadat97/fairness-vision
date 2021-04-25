@@ -96,12 +96,12 @@ class LatentEncoder(nn.Module):
         
         modules.append(nn.Conv2d(in_channels=1, out_channels=filters, kernel_size=kernel_size)),
         modules.append(nn.ReLU())
-        modules.append(nn.MaxPool2d(pool_size))
+        # modules.append(nn.MaxPool2d(pool_size))
         
         for _ in range(2):
             modules.append(nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size)),
             modules.append(nn.ReLU())
-            modules.append(nn.MaxPool2d(pool_size))
+            # modules.append(nn.MaxPool2d(pool_size))
         
         self.cnn = nn.Sequential(*modules)
         
@@ -124,19 +124,42 @@ class LatentEncoder(nn.Module):
         return features, out
         
 
-class concat(nn.Module):
-    def __init__(self, vae, latent_encoder):
+class AutoEncoder(nn.Module):
+    def __init__(self, vae: nn.Module, latent_encoder: nn.Module, freeze: bool = True):
         super().__init__()
         self.vae = vae
         self.encoder = latent_encoder
+        
+        if freeze:
+            self._freeze_vae()
     
     def forward(self, x):
         x = self.vae.decoder_forward(x)
         x, _ = self.encoder(x)
         return x
-        
-        
     
+    def _freeze_vae(self):
+        for param in self.vae.parameters():
+            param.requires_grad_(False)   
+
+
+class LogisticRegression(nn.Module):
+    def __init__(self, input_dim):
+        super().__init__()
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        self.linear = nn.Linear(input_dim, 1).to(device)
+        self.sigmoid = nn.Sigmoid().to(device)
+
+    def forward(self, x):
+        return self.linear(x).squeeze()
+
+    def predict(self, x):
+        return (self.sigmoid(self.linear(x)) >= 0.5).float().squeeze()
+
+    def logits(self, x):
+        return self.sigmoid(self.linear(x))
 # from mnist import MnistLoader
 
 # m = MnistLoader()

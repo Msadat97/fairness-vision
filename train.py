@@ -11,7 +11,7 @@ def vae_loss(inputs, targets, mu, log_var):
     image_size = 28
     beta = 5
     reconstruction_loss = nn.BCELoss()(inputs, targets)
-    reconstruction_loss *= image_size * image_size
+    reconstruction_loss *= image_size ** 2
     kl_loss = 1 + log_var - torch.square(mu) - torch.exp(log_var)
     kl_loss = -0.5 * torch.sum(kl_loss, axis=-1)
     return torch.mean(reconstruction_loss + beta*kl_loss)
