@@ -1,6 +1,6 @@
 import torch
 
-from abstract_constraint import AbstractConstraint
+from .abstract_constraint import AbstractConstraint
 from dl2 import dl2lib
 from dl2.training.supervised.domains import CategoricalBox, Box
 

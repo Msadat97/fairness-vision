@@ -35,7 +35,8 @@ data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.
 train_loader, val_loader = data.train_loader, data.val_loader
 
 vae = VAE(latent_dim=16)
-vae.load_state_dict(torch.load('saved_models/vae_state_dict_v1'))
+vae.load_state_dict(torch.load(
+    'saved_models/vae_state_dict_v1', map_location=torch.device('cpu')))
 vae.to(device)
 
 latent_encoder = LatentEncoder()
@@ -71,11 +72,10 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
 
     progress_bar = tqdm(loader)
 
-    for data_batch, targets_batch, protected_batch in progress_bar:
+    for data_batch, targets_batch in progress_bar:
         batch_size = data_batch.shape[0]
         data_batch = data_batch.to(device)
         targets_batch = targets_batch.to(device)
-        protected_batch = protected_batch.to(device)
 
         x_batches, y_batches = list(), list()
         assert batch_size % oracle.constraint.n_tvars == 0
@@ -88,8 +88,9 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         if split == 'train':
             autoencoder.train()
             classifier.train()
-
-        latent_data = autoencoder.encode(data_batch)
+            
+        vae_latent = vae.encoder_forward(data_batch)
+        latent_data = autoencoder.forward(vae_latent)
 
         data_batch_dec = autoencoder.decode(latent_data)
         l2_loss = torch.norm(data_batch_dec - data_batch, dim=1)
@@ -113,7 +114,8 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         else:
             z_batches = None
 
-        latent_adv = autoencoder.encode(z_batches[0]).detach()
+        vae_advs = vae.encoder_forward(z_batches[0])
+        latent_adv = autoencoder.encode(vae_advs).detach()
         l_inf_diffs.append(
             torch.abs(latent_data - latent_adv).max(1)[0].detach().cpu()
         )

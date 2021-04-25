@@ -1,6 +1,6 @@
 
-from attribute_conditional_constraint import AttributeConditionalConstraint
-from general_categorical_constraint import GeneralCategoricalConstraint
+from .attribute_conditional_constraint import AttributeConditionalConstraint
+from .general_categorical_constraint import GeneralCategoricalConstraint
 
 class ConstraintBuilder:
     @staticmethod

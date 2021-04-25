@@ -124,6 +124,33 @@ class LatentEncoder(nn.Module):
         return features, out
         
 
+class LatentDecoder(nn.Module):
+    def __init__(self) -> None:
+        super(LatentEncoder, self).__init__()
+
+        kernel_size = 3
+        filters = 64
+
+        modules = nn.ModuleList()
+        
+        for _ in range(2):
+            modules.append(nn.ConvTranspose2d(in_channels=filters,
+                           out_channels=filters, kernel_size=kernel_size)),
+            modules.append(nn.ReLU())
+
+        modules.append(
+            nn.ConvTranspose2d(in_channels=filters, out_channels=1, kernel_size=kernel_size)),
+        modules.append(nn.ReLU())
+
+        self.cnn = nn.Sequential(*modules)
+    
+    def forward(self, x):
+        x = self.cnn(x)
+        features = torch.flatten(x, start_dim=1)
+        out = self.classifier(features)
+        return features, out
+    
+
 class AutoEncoder(nn.Module):
     def __init__(self, vae: nn.Module, latent_encoder: nn.Module, freeze: bool = True):
         super().__init__()
@@ -161,10 +188,10 @@ class LatentClassifier(nn.Module):
 
     def logits(self, x):
         return self.softmax(self.linear(x))
-# from mnist import MnistLoader
 
-# m = MnistLoader()
-# x = m.get_data('x_train')
-# e = MNISTClassifier()
-# z = e.forward(x[0:1])
-# e.decoder_forward(z)
+from mnist import MnistLoader
+m = MnistLoader()
+x = m.get_data('x_train')
+le = LatentEncoder()
+ld = LatentDecoder()
+print(ld)
