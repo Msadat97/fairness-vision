@@ -81,7 +81,7 @@ class VAE(nn.Module):
 
 
 class LatentEncoder(nn.Module):
-    def __init__(self, input_shape=(1, 1, 28, 28), num_labels=10) -> None:
+    def __init__(self, input_shape=(1, 1, 28, 28), num_classes=10) -> None:
         super(LatentEncoder, self).__init__()
         
         kernel_size = 3
@@ -90,7 +90,7 @@ class LatentEncoder(nn.Module):
         pool_size = 2
         
         self.input_shape = input_shape
-        self.num_labels = num_labels
+        self.num_classes = num_classes
         
         modules = nn.ModuleList()
         
@@ -109,7 +109,7 @@ class LatentEncoder(nn.Module):
         
         self.classifier = nn.Sequential(
             nn.Dropout(p=drop_out_rate),
-            nn.Linear(self.flatten_shape, self.num_labels)
+            nn.Linear(self.flatten_shape, self.num_classes)
         )
         
     def get_shape(self):
