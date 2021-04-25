@@ -1,16 +1,18 @@
 from datetime import datetime
+from dl2.querying.models.cifar import models
 from os import makedirs, path
 
 import torch.nn as nn
 import torch.utils.data
 from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
                              confusion_matrix, f1_score)
-from torch.utils.tensorboard import SummaryWriter
+
+# from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from mnist import MnistLoader
 
-from lcifr.code.constraints import ConstraintBuilder
+from lcifr.code.constraints import GeneralCategoricalConstraint
 from dl2.training.supervised.oracles import DL2_Oracle
 from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from lcifr.code.utils.statistics import Statistics
@@ -21,7 +23,6 @@ lr = 0.01
 dl2_lr = 1.0
 patience = 5
 weight_decay = 0.01
-constraint = "GeneralCategorical(0.01, 0.3, [])"
 dl2_iters = 25
 dl2_weight = 1.0
 dec_weight = 0.0
@@ -46,12 +47,11 @@ autoencoder.to(device)
 classifier = LatentClassifier(latent_encoder.flatten_shape, latent_encoder.num_classes)
 classifier.to(device)
 
+constraint = GeneralCategoricalConstraint(model=autoencoder, delta=0.01, epsilon=0.3)
 oracle = DL2_Oracle(
     learning_rate=dl2_lr, net=autoencoder,
     use_cuda=torch.cuda.is_available(),
-    constraint=ConstraintBuilder.build(
-        autoencoder, data.train_data, constraint
-    )
+    constraint=constraint
 )
 
 cross_entropy = nn.CrossEntropyLoss()

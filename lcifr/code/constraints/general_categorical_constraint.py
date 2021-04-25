@@ -1,40 +1,35 @@
 import torch
 
-from constraints import AbstractConstraint
+from abstract_constraint import AbstractConstraint
 from dl2 import dl2lib
-from dl2.training.supervised.domains import CategoricalBox
+from dl2.training.supervised.domains import CategoricalBox, Box
 
 EPS = 1e-4
 
 
 class GeneralCategoricalConstraint(AbstractConstraint):
 
-    def __init__(self, model, delta, epsilon, cat, continuous_columns):
+    def __init__(self, model, delta, epsilon):
         super().__init__(model)
         self.delta = delta
         self.epsilon = epsilon + EPS
-        self.cat = cat
 
-        self.all_cat_columns = []
-        for ids in self.cat.values():
-            self.all_cat_columns += ids
-
-        self.continuous_columns = continuous_columns
+        # self.continuous_columns = continuous_columns
         self.n_tvars = 1
         self.n_gvars = 1
 
     def get_domains(self, x_batches, _):
         assert len(x_batches) == 1
-        batch_size, num_features = x_batches[0].shape
+        
+        # batch_size, num_features = x_batches[0].shape
+        # epsilon = torch.zeros(1, num_features).to(x_batches[0].device, dtype=x_batches[0].dtype)
+        # epsilon[0, self.continuous_columns] = self.epsilon
+        lb = x_batches[0] - self.epsilon
+        ub = x_batches[0] + self.epsilon
+        # lb[:, self.all_cat_columns] = -EPS
+        # ub[:, self.all_cat_columns] = +EPS
 
-        epsilon = torch.zeros(1, num_features).to(x_batches[0].device, dtype=x_batches[0].dtype)
-        epsilon[0, self.continuous_columns] = self.epsilon
-        lb = x_batches[0] - epsilon
-        ub = x_batches[0] + epsilon
-        lb[:, self.all_cat_columns] = -EPS
-        ub[:, self.all_cat_columns] = +EPS
-
-        return [CategoricalBox(lb, ub, self.cat)]
+        return [Box(lb, ub)]
 
     def get_condition(self, z_inp, z_out, x_batches, y_batches):
         data_orig = x_batches[0]

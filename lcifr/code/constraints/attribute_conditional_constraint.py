@@ -1,7 +1,7 @@
 import torch
 from gurobipy import GRB, abs_, and_, or_
 
-from constraints import AbstractConstraint
+from abstract_constraint import AbstractConstraint
 from dl2.dl2lib import GT, LT, And, Implication, Or
 from dl2.training.supervised.domains import CategoricalBox
 
