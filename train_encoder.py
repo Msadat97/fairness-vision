@@ -39,12 +39,12 @@ def get_latents(vae: VAE, data_loader, device='cpu'):
 
 
 # parameters
-lr = 0.01
-dl2_lr = 1.0
+lr = 0.001
+dl2_lr = 10
 patience = 5
 weight_decay = 0.01
 dl2_iters = 25
-dl2_weight = 5.0
+dl2_weight = 1.0
 dec_weight = 0.0
 num_epochs = 10
 args = get_args()
@@ -168,7 +168,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         progress_bar.set_description(
             f'[{split}] epoch={epoch:d}, ce_loss={tot_ce_loss.mean():.4f}, '
             f'dl2_loss={tot_dl2_loss.mean():.4f}, '
-            f'mix_loss={tot_mix_loss.mean():.4f}'
+            f'mix_loss={tot_mix_loss.mean():.4f}, '
             f'acc = {acc}'
         )
     return tot_mix_loss
