@@ -181,7 +181,7 @@ for epoch in range(num_epochs):
     scheduler.step(valid_mix_loss.mean())
 
     torch.save(
-        autoencoder.state_dict(), 'saved_models/'
+        autoencoder.state_dict(), 'saved_models/vae_lcifr_trained'
     )
     # torch.save(
     #     classifier.state_dict(),
