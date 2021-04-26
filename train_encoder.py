@@ -6,6 +6,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import torch.utils.data
 from lcifr.code.experiments.args_factory import  get_args
+from dl2.dl2lib import add_default_parser_args
 from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
                              confusion_matrix, f1_score)
 
@@ -66,7 +67,7 @@ classifier.to(device)
 
 data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
 train_loader, val_loader = data.train_loader, data.val_loader
-train_loader, val_loader = get_latents(vae, train_loader), get_latents(vae, val_loader)
+train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
 
 constraint = GeneralCategoricalConstraint(model=autoencoder, delta=0.01, epsilon=0.3)
 oracle = DL2_Oracle(
