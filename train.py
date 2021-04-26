@@ -13,7 +13,7 @@ def vae_loss(inputs, targets, mu, log_var):
     reconstruction_loss = nn.BCELoss()(inputs, targets)
     reconstruction_loss *= image_size ** 2
     kl_loss = 1 + log_var - torch.square(mu) - torch.exp(log_var)
-    kl_loss = -0.5 * torch.sum(kl_loss, axis=-1)
+    kl_loss = -0.5 * torch.sum(kl_loss, dim=-1)
     return torch.mean(reconstruction_loss + beta*kl_loss)
 
 
@@ -36,18 +36,18 @@ class VAETrainer(object):
         self.optimizer = optimizer
         self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', patience=3, threshold=1e-2)
         self.loss_fn = loss_fn
-        
-        self.multi_gpu = False
-        if (multi_gpu) & (torch.cuda.device_count() > 1):
-            self.multi_gpu = True
-        
-        self.train_stat = defaultdict(lambda: 'Not Present')
-        self.val_stat = defaultdict(lambda: 'Not Present')
 
         if device is None:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = device
+
+        self.multi_gpu = False
+        if multi_gpu & (torch.cuda.device_count() > 1):
+            self.multi_gpu = True
+
+        self.train_stat = defaultdict(lambda: 0.0)
+        self.val_stat = defaultdict(lambda: 0.0)
 
     def train(self, epochs=20):
         """
@@ -81,7 +81,7 @@ class VAETrainer(object):
                 train_loss_list.append(loss.data.item())
 
             training_loss = np.mean(train_loss_list)
-            self.train_stat[f'Epoch {epoch}'] = training_loss
+            self.train_stat[f'Epoch {epoch}'] = training_loss.item()
             loop.write(f" Training loss:{training_loss:04f}")
             
             
@@ -125,18 +125,18 @@ class LatentTrainer(object):
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
-        
-        self.multi_gpu = False
-        if (multi_gpu) & (torch.cuda.device_count() > 1):
-            self.multi_gpu = True
-        
-        self.train_stat = defaultdict(lambda: 'Not Present')
-        self.val_stat = defaultdict(lambda: 'Not Present')
+
+        self.train_stat = defaultdict(lambda:0.0)
+        self.val_stat = defaultdict(lambda:0.0)
 
         if device is None:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = device
+
+        self.multi_gpu = False
+        if multi_gpu & (torch.cuda.device_count() > 1):
+            self.multi_gpu = True
 
     def train(self, epochs=20):
         """
@@ -167,6 +167,7 @@ class LatentTrainer(object):
                 inputs = inputs.to(self.device)
                 targets = targets.to(self.device)
                 targets = targets.type(torch.long)
+                input_size = len(inputs)
                 
                 _, output = self.model(inputs)
                 
@@ -176,17 +177,17 @@ class LatentTrainer(object):
                 loss = self.loss_fn(output, targets)
                 loss.backward()
                 self.optimizer.step()
-                train_loss_list.append(loss.data.item())
+                train_loss_list.append(loss.data.item()*input_size)
                 acc = accuracy(train_target_list, train_pred_list)
                 loop.set_description(
-                    f'epoch={epoch:d}, '
-                    f'acc = {acc:.4f}'
+                    f"epoch={epoch:d}, "
+                    f"acc = {acc:.4f}"
                 )
                 
             training_acc = accuracy(train_pred_list, train_target_list)
             training_loss = np.mean(train_loss_list)
 
-            self.train_stat[f'Epoch {epoch}'] = training_loss
+            self.train_stat[f"Epoch {epoch}"] = training_loss.item()
             
             if self.val_loader is not None:
                 
@@ -200,6 +201,7 @@ class LatentTrainer(object):
                     inputs = inputs.to(self.device)
                     targets = targets.to(self.device)
                     targets = targets.type(torch.long)
+                    input_size = len(inputs)
                     
                     _, output = self.model(inputs)
                     
@@ -207,11 +209,11 @@ class LatentTrainer(object):
                     val_target_list.append(targets.flatten())
                     
                     loss = self.loss_fn(output, targets.type(torch.long)) 
-                    valid_loss_list.append(loss.data.item())
+                    valid_loss_list.append(loss.data.item()*input_size)
                 
                 valid_acc = accuracy(val_pred_list, val_target_list)
                 valid_loss = np.mean(valid_loss_list)
-                self.val_stat[f'Epoch {epoch}'] = valid_loss
+                self.val_stat[f"Epoch {epoch}"] = valid_loss.item()
                 
                 loop.write(f" Test Loss: {valid_loss:04f}, Test Accuracy: {valid_acc:04f}")
                 # loop.set_postfix(train_loss=training_loss.item(), valid_loss=valid_loss.item())
