@@ -43,7 +43,7 @@ dl2_lr = 1.0
 patience = 5
 weight_decay = 0.01
 dl2_iters = 25
-dl2_weight = 1.0
+dl2_weight = 5.0
 dec_weight = 0.0
 num_epochs = 10
 args = get_args()
@@ -180,10 +180,9 @@ for epoch in range(num_epochs):
     )
     scheduler.step(valid_mix_loss.mean())
 
-    # torch.save(
-    #     autoencoder.state_dict(),
-    #     path.join(models_dir, f'autoencoder_{epoch}.pt')
-    # )
+    torch.save(
+        autoencoder.state_dict(), 'saved_models/'
+    )
     # torch.save(
     #     classifier.state_dict(),
     #     path.join(models_dir, f'classifier_{epoch}.pt')
