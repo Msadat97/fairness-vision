@@ -13,11 +13,14 @@ from model import VAE, LatentEncoder
 from train import VAETrainer, vae_loss, LatentTrainer
 from torch import nn
 
-torch.cuda.empty_cache()
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-data = MnistLoader(shuffle=True, normalize=False)
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
+
+data = MnistLoader(shuffle=True, normalize=False, batch_size=128)
 clf = LatentEncoder()
-clf.cuda()
+clf.to(device)
 optimizer = optim.RMSprop(clf.parameters(), lr=1e-3)
 
 trainer = LatentTrainer(clf, 
@@ -26,7 +29,7 @@ trainer = LatentTrainer(clf,
                         train_loader=data.train_loader, 
                         val_loader=data.test_loader)
 
-trainer.train(epochs=10, device='cuda')
+trainer.train(epochs=10)
 torch.save(clf.state_dict(), 'latent_state_dict_v1')
 
 # def weights_init(m):

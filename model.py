@@ -9,7 +9,7 @@ from torch.nn.modules.activation import ReLU
 
 class VAE(nn.Module):
     
-    def __init__(self, latent_dim = 2, input_shape=(1, 1, 28, 28)):
+    def __init__(self, latent_dim=2, input_shape=(1, 1, 28, 28)):
         super().__init__()
         
         self.latent_dimension = latent_dim

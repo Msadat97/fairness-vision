@@ -25,7 +25,8 @@ class VAETrainer(object):
                  loss_fn, 
                  train_loader, 
                  val_loader=None, 
-                 multi_gpu=False) -> None:
+                 multi_gpu=False,
+                 device=None) -> None:
         
         super(VAETrainer, self).__init__()
         
@@ -43,7 +44,12 @@ class VAETrainer(object):
         self.train_stat = defaultdict(lambda: 'Not Present')
         self.val_stat = defaultdict(lambda: 'Not Present')
 
-    def train(self, epochs=20, device="cpu"):
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
+
+    def train(self, epochs=20):
         """
         Train the network
         """
@@ -64,8 +70,8 @@ class VAETrainer(object):
             for _, batch in loop:
                 self.optimizer.zero_grad()
                 inputs, targets = batch
-                inputs = inputs.to(device)
-                targets = targets.to(device)
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
                 
                 x_hat, mu, log_var = self.vae(inputs)
                     
@@ -87,9 +93,9 @@ class VAETrainer(object):
             #     target_list = []
             #     for batch in self.val_loader:
             #         inputs, targets = batch
-            #         inputs = inputs.to(device)
+            #         inputs = inputs.to(self.device)
             #         output = self.model(inputs)
-            #         targets = targets.to(device)
+            #         targets = targets.to(self.device)
             #         loss = self.loss_fn(output,targets) 
             #         valid_loss_list.append(loss.data.item())
             #         predictions = predict(inputs, self.model)
@@ -111,7 +117,7 @@ class VAETrainer(object):
          
 class LatentTrainer(object):
     
-    def __init__(self, model, optimizer, loss_fn, train_loader, val_loader=None, multi_gpu=False) -> None:
+    def __init__(self, model, optimizer, loss_fn, train_loader, val_loader=None, multi_gpu=False, device=None) -> None:
         super(LatentTrainer, self).__init__()
         
         self.train_loader = train_loader
@@ -126,8 +132,13 @@ class LatentTrainer(object):
         
         self.train_stat = defaultdict(lambda: 'Not Present')
         self.val_stat = defaultdict(lambda: 'Not Present')
-        
-    def train(self, epochs=20, device="cpu"):
+
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
+
+    def train(self, epochs=20):
         """
         Train the network
         """
@@ -153,8 +164,8 @@ class LatentTrainer(object):
             for _, batch in loop:
                 self.optimizer.zero_grad()
                 inputs, targets = batch
-                inputs = inputs.to(device)
-                targets = targets.to(device)
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
                 targets = targets.type(torch.long)
                 
                 _, output = self.model(inputs)
@@ -166,9 +177,13 @@ class LatentTrainer(object):
                 loss.backward()
                 self.optimizer.step()
                 train_loss_list.append(loss.data.item())
+                acc = accuracy(train_target_list, train_pred_list)
+                loop.set_description(f'epoch={epoch:d}')
+                loop.set_postfix(acc=acc)
                 
             training_acc = accuracy(train_pred_list, train_target_list)
             training_loss = np.mean(train_loss_list)
+
             self.train_stat[f'Epoch {epoch}'] = training_loss
             
             if self.val_loader is not None:
@@ -180,8 +195,8 @@ class LatentTrainer(object):
                 for batch in self.val_loader:
                     
                     inputs, targets = batch
-                    inputs = inputs.to(device)
-                    targets = targets.to(device)
+                    inputs = inputs.to(self.device)
+                    targets = targets.to(self.device)
                     targets = targets.type(torch.long)
                     
                     _, output = self.model(inputs)

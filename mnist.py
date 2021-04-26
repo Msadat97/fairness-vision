@@ -38,7 +38,7 @@ def get_mnist(normalize, device):
 
 class MnistLoader:
     def __init__(
-        self, batch_size=None, shuffle=True, 
+        self, batch_size=1, shuffle=True,
         normalize=True, device="cpu", split_ratio=None
     ) -> None:
         self.train_data, self.test_data = get_mnist(normalize, device)
