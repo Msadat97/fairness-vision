@@ -5,8 +5,7 @@ from argparse import ArgumentParser
 from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import torch.utils.data
-from lcifr.code.experiments.args_factory import  get_args
-from dl2.dl2lib import add_default_parser_args
+from lcifr.code.experiments.args_factory import get_args
 from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
                              confusion_matrix, f1_score)
 
@@ -145,7 +144,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             classifier.train()
 
         _, dl2_loss, _ = oracle.evaluate(
-            x_batches, y_batches, z_batches, args={}
+            x_batches, y_batches, z_batches, args=args
         )
         mix_loss = torch.mean(
             cross_entropy + dl2_weight * dl2_loss +
