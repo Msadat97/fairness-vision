@@ -178,8 +178,10 @@ class LatentTrainer(object):
                 self.optimizer.step()
                 train_loss_list.append(loss.data.item())
                 acc = accuracy(train_target_list, train_pred_list)
-                loop.set_description(f'epoch={epoch:d}')
-                loop.set_postfix(acc=acc)
+                loop.set_description(
+                    f'epoch={epoch:d}, '
+                    f'acc = {acc:.4f}'
+                )
                 
             training_acc = accuracy(train_pred_list, train_target_list)
             training_loss = np.mean(train_loss_list)
