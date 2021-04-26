@@ -40,13 +40,13 @@ def get_latents(vae: VAE, data_loader, device='cpu'):
 
 # parameters
 lr = 0.001
-dl2_lr = 10
+dl2_lr = 2.5
 patience = 5
 weight_decay = 0.01
 dl2_iters = 25
 dl2_weight = 1.0
 dec_weight = 0.0
-num_epochs = 10
+num_epochs = 25
 args = get_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -169,7 +169,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             f'[{split}] epoch={epoch:d}, ce_loss={tot_ce_loss.mean():.4f}, '
             f'dl2_loss={tot_dl2_loss.mean():.4f}, '
             f'mix_loss={tot_mix_loss.mean():.4f}, '
-            f'acc = {acc}'
+            f'acc = {acc:.4f}'
         )
     return tot_mix_loss
 

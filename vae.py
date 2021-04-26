@@ -26,8 +26,8 @@ trainer = LatentTrainer(clf,
                         train_loader=data.train_loader, 
                         val_loader=data.test_loader)
 
-trainer.train(epochs=50, device='cuda')
-# torch.save(clf.state_dict(), 'latent_state_dict_v1')
+trainer.train(epochs=10, device='cuda')
+torch.save(clf.state_dict(), 'latent_state_dict_v1')
 
 # def weights_init(m):
 #     if isinstance(m, nn.Conv2d):
