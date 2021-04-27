@@ -157,17 +157,20 @@ class LatentTrainer(object):
                     leave=True,
                     position=0,
                 )
-            loop.set_description(f'Epoch: {epoch}/{epochs}')
             
             self.model.train()
-        
+            current_data_size = 0
+
             for _, batch in loop:
                 self.optimizer.zero_grad()
                 inputs, targets = batch
                 inputs = inputs.to(self.device)
                 targets = targets.to(self.device)
                 targets = targets.type(torch.long)
+
+                # for calculating the average loss
                 input_size = len(inputs)
+                current_data_size += input_size
                 
                 _, output = self.model(inputs)
                 
@@ -178,14 +181,19 @@ class LatentTrainer(object):
                 loss.backward()
                 self.optimizer.step()
                 train_loss_list.append(loss.data.item()*input_size)
-                acc = accuracy(train_target_list, train_pred_list)
+                current_acc = accuracy(train_target_list, train_pred_list)
+                current_loss = np.sum(train_loss_list)/current_data_size
+
                 loop.set_description(
+                    f"[train] "
                     f"epoch={epoch:d}, "
-                    f"acc = {acc:.4f}"
+                    f"loss = {current_loss:.4f}, "
+                    f"acc = {current_acc:.4f}"
                 )
-                
+
+            train_size = len(self.train_loader.dataset)
             training_acc = accuracy(train_pred_list, train_target_list)
-            training_loss = np.mean(train_loss_list)
+            training_loss = np.sum(train_loss_list)/ train_size
 
             self.train_stat[f"Epoch {epoch}"] = training_loss.item()
             
@@ -194,7 +202,7 @@ class LatentTrainer(object):
                 valid_loss_list = []
                 val_pred_list = []
                 val_target_list = []
-                
+
                 for batch in self.val_loader:
                     
                     inputs, targets = batch
@@ -210,9 +218,10 @@ class LatentTrainer(object):
                     
                     loss = self.loss_fn(output, targets.type(torch.long)) 
                     valid_loss_list.append(loss.data.item()*input_size)
-                
+
+                val_size = len(self.val_loader.dataset)
                 valid_acc = accuracy(val_pred_list, val_target_list)
-                valid_loss = np.mean(valid_loss_list)
+                valid_loss = np.sum(valid_loss_list)/ val_size
                 self.val_stat[f"Epoch {epoch}"] = valid_loss.item()
                 
                 loop.write(f" Test Loss: {valid_loss:04f}, Test Accuracy: {valid_acc:04f}")
