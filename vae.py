@@ -1,8 +1,8 @@
 import torch
 import torchvision
 import torchvision.datasets as datasets
-import numpy as np 
-import matplotlib.pyplot as plt 
+import numpy as np
+import matplotlib.pyplot as plt
 import seaborn as sns
 import tensorflow as tf
 from torch.utils.data import TensorDataset
@@ -39,7 +39,7 @@ if torch.cuda.is_available():
 if __name__ == "__main__":
     data = MnistLoader(batch_size=128, shuffle=True, normalize=False)
     vae = VAE(latent_dim=16)
-    vae.cuda()
+    vae.to(device)
     # vae.apply(weights_init)
 
     optimizer = optim.RMSprop(vae.parameters(), lr=2.5e-3)

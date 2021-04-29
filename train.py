@@ -59,10 +59,9 @@ class VAETrainer(object):
             self.vae.train()
             current_data_size = 0
             for _, batch in loop:
-                batch_size = len(batch[0])
-                current_data_size += batch_size
                 self.optimizer.zero_grad()
-                loss = self._train_step(batch)
+                loss, batch_size = self._train_step(batch)
+                current_data_size += batch_size
                 train_loss_list.append(loss.data.item()*batch_size)
                 training_loss = np.sum(train_loss_list)/current_data_size
                 loop.set_description(f"Epoch = {epoch}, "
@@ -76,6 +75,7 @@ class VAETrainer(object):
         inputs, targets = batch
         inputs = inputs.to(self.device)
         targets = targets.to(self.device)
+        batch_size = len(targets)
 
         x_hat, mu, log_var = self.vae(inputs)
 
@@ -84,7 +84,7 @@ class VAETrainer(object):
                              mu, log_var)
         loss.backward()
         self.optimizer.step()
-        return loss
+        return loss, batch_size
 
     def vae_loss(self, inputs, targets, mu, log_var):
         image_size = 28
@@ -96,9 +96,17 @@ class VAETrainer(object):
 
          
 class LatentTrainer(object):
-    
-    def __init__(self, model, optimizer, loss_fn, train_loader, val_loader=None, multi_gpu=False, device=None) -> None:
-        super(LatentTrainer, self).__init__()
+
+    def __init__(self,
+                 model,
+                 optimizer,
+                 loss_fn,
+                 train_loader,
+                 val_loader=None,
+                 multi_gpu=False,
+                 device=None) -> None:
+
+        super().__init__()
         
         self.train_loader = train_loader
         self.val_loader = val_loader
