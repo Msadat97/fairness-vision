@@ -7,26 +7,16 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils import get_label, accuracy
 
 
-def vae_loss(inputs, targets, mu, log_var):
-    image_size = 28
-    beta = 5
-    reconstruction_loss = nn.BCELoss()(inputs, targets)
-    reconstruction_loss *= image_size ** 2
-    kl_loss = 1 + log_var - torch.square(mu) - torch.exp(log_var)
-    kl_loss = -0.5 * torch.sum(kl_loss, dim=-1)
-    return torch.mean(reconstruction_loss + beta*kl_loss)
-
-
 class VAETrainer(object):
     
     def __init__(self, 
                  model, 
-                 optimizer, 
-                 loss_fn, 
+                 optimizer,
                  train_loader, 
                  val_loader=None, 
                  multi_gpu=False,
-                 device=None) -> None:
+                 device=None,
+                 beta=1) -> None:
         
         super(VAETrainer, self).__init__()
         
@@ -35,7 +25,7 @@ class VAETrainer(object):
         self.vae = model
         self.optimizer = optimizer
         self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', patience=3, threshold=1e-2)
-        self.loss_fn = loss_fn
+        self.beta = beta
 
         if device is None:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -49,7 +39,7 @@ class VAETrainer(object):
         self.train_stat = defaultdict(lambda: 0.0)
         self.val_stat = defaultdict(lambda: 0.0)
 
-    def train(self, epochs=20):
+    def train(self, epochs=1):
         """
         Train the network
         """
@@ -65,54 +55,44 @@ class VAETrainer(object):
                     leave=True,
                     position=0,
                 )
-            loop.set_description(f'Epoch: {epoch}/{epochs}')
+            loop.set_description("[train]")
             self.vae.train()
+            current_data_size = 0
             for _, batch in loop:
+                batch_size = len(batch[0])
+                current_data_size += batch_size
                 self.optimizer.zero_grad()
-                inputs, targets = batch
-                inputs = inputs.to(self.device)
-                targets = targets.to(self.device)
-                
-                x_hat, mu, log_var = self.vae(inputs)
-                    
-                loss = self.loss_fn(torch.flatten(x_hat), torch.flatten(inputs), mu, log_var)
-                loss.backward()
-                self.optimizer.step()
-                train_loss_list.append(loss.data.item())
+                loss = self._train_step(batch)
+                train_loss_list.append(loss.data.item()*batch_size)
+                training_loss = np.sum(train_loss_list)/current_data_size
+                loop.set_description(f"Epoch = {epoch}, "
+                                     f"Loss = {training_loss:0.4f}, ")
 
             training_loss = np.mean(train_loss_list)
             self.train_stat[f'Epoch {epoch}'] = training_loss.item()
             loop.write(f" Training loss:{training_loss:04f}")
-            
-            
-            # self.scheduler.step(training_loss)
-            
-            # if self.val_loader is not None:
-            #     valid_loss_list = []
-            #     pred_list = []
-            #     target_list = []
-            #     for batch in self.val_loader:
-            #         inputs, targets = batch
-            #         inputs = inputs.to(self.device)
-            #         output = self.model(inputs)
-            #         targets = targets.to(self.device)
-            #         loss = self.loss_fn(output,targets) 
-            #         valid_loss_list.append(loss.data.item())
-            #         predictions = predict(inputs, self.model)
-            #         pred_list.append(predictions.flatten())
-            #         target_list.append(targets.flatten())
-                
-            #     valid_loss = np.mean(valid_loss_list)
-            #     self.val_stat[f'Epoch {epoch}'] = valid_loss
-                
-            #     loop.set_description(f'Epoch: {epoch}/{epochs}')
-            #     loop.set_postfix(train_loss=training_loss.item(), valid_loss=valid_loss.item())
-            #     # print('Epoch: {}, Training Loss: {:.2f}, Validation Loss: {:.2f}, accuracy = {:.2f}'.format(epoch, training_loss,
-            #     # valid_loss, accuracy(pred_list, target_list)))
-            # else:
-            #     loop.write(f" Training loss:{training_loss:04f}")
-            #     # loop.set_postfix(train_loss=0.5)
-            #     # loop.display(f'Loss: {training_loss}')
+    
+    def _train_step(self, batch):
+        inputs, targets = batch
+        inputs = inputs.to(self.device)
+        targets = targets.to(self.device)
+
+        x_hat, mu, log_var = self.vae(inputs)
+
+        loss = self.vae_loss(torch.flatten(x_hat),
+                             torch.flatten(inputs),
+                             mu, log_var)
+        loss.backward()
+        self.optimizer.step()
+        return loss
+
+    def vae_loss(self, inputs, targets, mu, log_var):
+        image_size = 28
+        reconstruction_loss = nn.BCELoss()(inputs, targets)
+        reconstruction_loss *= image_size ** 2
+        kl_loss = 1 + log_var - torch.square(mu) - torch.exp(log_var)
+        kl_loss = -0.5 * torch.sum(kl_loss, dim=-1)
+        return torch.mean(reconstruction_loss + self.beta * kl_loss)
 
          
 class LatentTrainer(object):

@@ -42,10 +42,11 @@ class VAE(nn.Module):
             nn.ReLU(),
             nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
-        )  
+        )
         
-        self.output_decoder = nn.ConvTranspose2d(in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
-        
+        self.output_decoder = nn.ConvTranspose2d(
+            in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
+
     def get_shape(self):
         x = torch.randn(self.input_shape)
         x = self.cnn_encoder(x)
@@ -92,11 +93,11 @@ class Encoder(nn.Module):
 
         encoder_modules = nn.ModuleList()
 
-        encoder_modules.append(nn.Conv2d(in_channels=1, out_channels=filters, kernel_size=kernel_size)),
+        encoder_modules.append(nn.Conv2d(in_channels=1, out_channels=filters, kernel_size=kernel_size))
         encoder_modules.append(nn.ReLU())
 
         for _ in range(2):
-            encoder_modules.append(nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size)),
+            encoder_modules.append(nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size))
             encoder_modules.append(nn.ReLU())
 
         self.encoder = nn.Sequential(*encoder_modules)
@@ -115,12 +116,10 @@ class Decoder(nn.Module):
         decoder_moduls = nn.ModuleList()
 
         for _ in range(2):
-            decoder_moduls.append(nn.ConvTranspose2d(in_channels=filters,
-                           out_channels=filters, kernel_size=kernel_size)),
+            decoder_moduls.append(nn.ConvTranspose2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size))
             decoder_moduls.append(nn.ReLU())
 
-        decoder_moduls.append(
-            nn.ConvTranspose2d(in_channels=filters, out_channels=1, kernel_size=kernel_size)),
+        decoder_moduls.append(nn.ConvTranspose2d(in_channels=filters, out_channels=1, kernel_size=kernel_size)),
         decoder_moduls.append(nn.ReLU())
 
         self.decoder = nn.Sequential(*decoder_moduls)
