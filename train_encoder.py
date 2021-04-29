@@ -46,7 +46,7 @@ weight_decay = 0.01
 dl2_iters = 25
 dl2_weight = 1.0
 dec_weight = 0.0
-num_epochs = 25
+num_epochs = 5
 args = get_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
