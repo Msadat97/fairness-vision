@@ -9,10 +9,11 @@ EPS = 1e-4
 
 class GeneralCategoricalConstraint(AbstractConstraint):
 
-    def __init__(self, model, delta, epsilon):
+    def __init__(self, model, delta, epsilon, latent_idx):
         super().__init__(model)
         self.delta = delta
         self.epsilon = epsilon + EPS
+        self.latent_idx = latent_idx
 
         # self.continuous_columns = continuous_columns
         self.n_tvars = 1
@@ -21,9 +22,9 @@ class GeneralCategoricalConstraint(AbstractConstraint):
     def get_domains(self, x_batches, _):
         assert len(x_batches) == 1
         
-        # batch_size, num_features = x_batches[0].shape
-        # epsilon = torch.zeros(1, num_features).to(x_batches[0].device, dtype=x_batches[0].dtype)
-        # epsilon[0, self.continuous_columns] = self.epsilon
+        batch_size, num_features = x_batches[0].shape
+        epsilon = torch.zeros(1, num_features).to(x_batches[0].device, dtype=x_batches[0].dtype)
+        epsilon[0, self.latent_idx] = self.epsilon
         lb = x_batches[0] - self.epsilon
         ub = x_batches[0] + self.epsilon
         # lb[:, self.all_cat_columns] = -EPS

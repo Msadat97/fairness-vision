@@ -21,7 +21,7 @@ from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from lcifr.code.utils.statistics import Statistics
 
 
-def get_latents(vae: VAE, data_loader, device='cpu'):
+def get_latents(vae: VAE, data_loader, device=torch.device('cpu')):
     z_list = []
     y_list = []
     for batch in data_loader:
@@ -69,7 +69,7 @@ data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.
 train_loader, val_loader = data.train_loader, data.val_loader
 train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
 
-constraint = GeneralCategoricalConstraint(model=autoencoder, delta=0.01, epsilon=0.3)
+constraint = GeneralCategoricalConstraint(model=autoencoder, delta=0.01, epsilon=0.3, latent_idx=5)
 oracle = DL2_Oracle(
     learning_rate=dl2_lr, net=autoencoder,
     use_cuda=torch.cuda.is_available(),
@@ -186,7 +186,7 @@ for epoch in range(num_epochs):
     scheduler.step(valid_mix_loss.mean())
 
     torch.save(
-        autoencoder.state_dict(), 'saved_models/vae_lcifr_trained'
+        autoencoder.state_dict(), 'saved_models/vae-lcifr-trained-v2'
     )
     # torch.save(
     #     classifier.state_dict(),
