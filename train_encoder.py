@@ -92,14 +92,11 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
     tot_mix_loss, tot_ce_loss, tot_dl2_loss = Statistics.get_stats(3)
 
     progress_bar = tqdm(loader)
-    target_list = []
-    pred_list = []
     for data_batch, targets_batch in progress_bar:
         batch_size = data_batch.shape[0]
         data_batch = data_batch.to(device)
         targets_batch = targets_batch.to(device)
         targets_batch = targets_batch.type(torch.long)
-        target_list.append(targets_batch)
 
         x_batches, y_batches = list(), list()
         assert batch_size % oracle.constraint.n_tvars == 0
@@ -119,7 +116,6 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         l2_loss = torch.norm(data_batch_dec - data_batch, dim=1)
 
         logits = classifier(latent_data)
-        pred_list.append(classifier.predict(latent_data))
 
         cross_entropy = cre_loss(logits, targets_batch)
         predictions_batch = classifier.predict(latent_data)
@@ -164,7 +160,7 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         tot_ce_loss.add(cross_entropy.mean().item())
         tot_dl2_loss.add(dl2_loss.mean().item())
         tot_mix_loss.add(mix_loss.mean().item())
-        acc = accuracy(pred_list, target_list)
+        acc = accuracy(predictions, targets)
         progress_bar.set_description(
             f'[{split}] epoch={epoch:d}, ce_loss={tot_ce_loss.mean():.4f}, '
             f'dl2_loss={tot_dl2_loss.mean():.4f}, '
