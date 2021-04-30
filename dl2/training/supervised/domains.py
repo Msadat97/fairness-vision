@@ -62,23 +62,23 @@ class CategoricalBox:
 class Segment:
 
     def __init__(self, p1, p2):
-        self.p1_n = p1.cpu().numpy()
-        self.p2_n = p2.cpu().numpy()
+        self.p1_n = p1.cpu()
+        self.p2_n = p2.cpu()
         self.d = self.p2_n - self.p1_n
-        self.d_norm = self.d / np.linalg.norm(self.d)
+        self.d_norm = self.d / torch.norm(self.d)
         self.name = 'segment'
 
     def is_empty(self):
         return False
 
     def project(self, x):
-        dp = np.sum((x - self.p1_n) * self.d_norm)
+        dp = torch.sum((x - self.p1_n) * self.d_norm)
         if dp < 0:
             return self.p1_n
-        elif dp > np.linalg.norm(self.d):
+        elif dp > torch.norm(self.d):
             return self.p2_n
         else:
             return self.p1_n + dp * self.d_norm
 
     def sample(self):
-        return self.p1_n + (self.p2_n - self.p1_n) * np.random.random()
+        return self.p1_n + (self.p2_n - self.p1_n) * torch.rand(1)

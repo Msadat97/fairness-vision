@@ -1,4 +1,5 @@
 from datetime import datetime
+from lcifr.code.constraints.general_categorical_constraint import SegmentConstraint
 from dl2.querying.models.cifar import models
 from os import makedirs, path
 from argparse import ArgumentParser
@@ -69,7 +70,7 @@ data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.
 train_loader, val_loader = data.train_loader, data.val_loader
 train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
 
-constraint = GeneralCategoricalConstraint(model=autoencoder, delta=0.01, epsilon=0.3, latent_idx=5)
+constraint = SegmentConstraint(model=autoencoder, delta=0.01, epsilon=0.5, latent_idx=5)
 oracle = DL2_Oracle(
     learning_rate=dl2_lr, net=autoencoder,
     use_cuda=torch.cuda.is_available(),
@@ -182,7 +183,7 @@ for epoch in range(num_epochs):
     scheduler.step(valid_mix_loss.mean())
 
     torch.save(
-        autoencoder.state_dict(), 'saved_models/vae-lcifr-trained-v2'
+        autoencoder.state_dict(), 'saved_models/vae-lcifr-trained-v3'
     )
     # torch.save(
     #     classifier.state_dict(),
