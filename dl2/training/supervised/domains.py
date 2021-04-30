@@ -62,8 +62,8 @@ class CategoricalBox:
 class Segment:
 
     def __init__(self, p1, p2):
-        self.p1_n = p1.cpu()
-        self.p2_n = p2.cpu()
+        self.p1_n = p1
+        self.p2_n = p2
         self.d = self.p2_n - self.p1_n
         self.d_norm = self.d / torch.norm(self.d)
         self.name = 'segment'
@@ -81,4 +81,4 @@ class Segment:
             return self.p1_n + dp * self.d_norm
 
     def sample(self):
-        return self.p1_n + (self.p2_n - self.p1_n) * torch.rand(1)
+        return self.p1_n + (self.p2_n - self.p1_n) * np.random.random()
