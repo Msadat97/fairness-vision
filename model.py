@@ -44,11 +44,10 @@ class VAE(nn.Module):
             nn.ReLU(),
         )
         
-        self.output_decoder = nn.ConvTranspose2d(
-            in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
+        self.output_decoder = nn.ConvTranspose2d(in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
 
     def get_shape(self):
-        x = torch.randn(self.input_shape)
+        x = torch.zeros(self.input_shape)
         x = self.cnn_encoder(x)
         return x.shape[1:], torch.prod(torch.tensor(x.shape)).item()
     
@@ -113,16 +112,16 @@ class Decoder(nn.Module):
         kernel_size = 3
         filters = 64
 
-        decoder_moduls = nn.ModuleList()
+        decoder_modules = nn.ModuleList()
 
         for _ in range(2):
-            decoder_moduls.append(nn.ConvTranspose2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size))
-            decoder_moduls.append(nn.ReLU())
+            decoder_modules.append(nn.ConvTranspose2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size))
+            decoder_modules.append(nn.ReLU())
 
-        decoder_moduls.append(nn.ConvTranspose2d(in_channels=filters, out_channels=1, kernel_size=kernel_size)),
-        decoder_moduls.append(nn.ReLU())
+        decoder_modules.append(nn.ConvTranspose2d(in_channels=filters, out_channels=1, kernel_size=kernel_size))
+        decoder_modules.append(nn.ReLU())
 
-        self.decoder = nn.Sequential(*decoder_moduls)
+        self.decoder = nn.Sequential(*decoder_modules)
     
     def forward(self, x):
         return self.decoder(x)
@@ -146,7 +145,7 @@ class LatentEncoder(nn.Module):
         )
 
     def get_shape(self):
-        x = torch.randn(self.input_shape)
+        x = torch.zeros(self.input_shape)
         x = self.encoder(x)
         return x.shape[1:], torch.prod(torch.tensor(x.shape)).item()
 
