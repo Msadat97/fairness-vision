@@ -8,7 +8,7 @@ class Attack:
                  eps,
                  clip_min=None,
                  clip_max=None,
-                 device='cpu',
+                 device=None,
                  ) -> None:
 
         self.model = model
@@ -17,8 +17,12 @@ class Attack:
         self.clip_min = clip_min
         self.clip_max = clip_max
         self.loss_fn = loss_fn
-        self.device = device
-
+        
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
+            
     def fgsm_attack(self, input_vec, targets, eta=None):
 
         self.model.eval()
@@ -37,7 +41,6 @@ class Attack:
         perturbed_vec = input_vec_ + eta*input_vec_.grad.sign()
 
         if (self.clip_min is not None) or (self.clip_max is not None):
-
             perturbed_vec.clamp_(min=self.clip_min, max=self.clip_max)
 
         return perturbed_vec
@@ -54,16 +57,14 @@ class Attack:
             num_restarts = 1
 
         for i in range(num_restarts):
+            
             if random_start:
-
                 input_vec_ += torch.mul(
                     self.eps,
-                    torch.rand_like(
-                        input_vec, device=self.device).uniform_(-1, 1)
+                    torch.rand_like(input_vec, device=self.device).uniform_(-1, 1)
                 )
 
             for _ in range(iterations):
-
                 input_vec_ = self.fgsm_attack(input_vec_, targets, eta=alpha)
                 input_vec_ = torch.max(input_vec_min, input_vec_)
                 input_vec_ = torch.min(input_vec_max, input_vec_)

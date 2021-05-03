@@ -11,6 +11,7 @@ from mnist import MnistLoader
 from model import VAE, LatentEncoder
 from train import VAETrainer, LatentTrainer
 from torch import nn
+from linear_vae import LinearVAE
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -39,10 +40,11 @@ if torch.cuda.is_available():
 if __name__ == "__main__":
     data = MnistLoader(batch_size=128, shuffle=True, normalize=False)
     vae = VAE(latent_dim=16)
+    # vae = LinearVAE(16)
     vae.to(device)
     # vae.apply(weights_init)
 
     optimizer = optim.RMSprop(vae.parameters(), lr=2.5e-3)
     trainer = VAETrainer(vae, optimizer, train_loader=data.train_loader)
-    trainer.train(epochs=20)
-    # torch.save(vae.state_dict(), 'vae_state_dict_v1')
+    trainer.train(epochs=30)
+    torch.save(vae.state_dict(), 'vae-state-dict-v2')

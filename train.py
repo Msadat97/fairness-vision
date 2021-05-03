@@ -60,18 +60,18 @@ class VAETrainer(object):
             current_data_size = 0
             for _, batch in loop:
                 self.optimizer.zero_grad()
-                loss, batch_size = self._train_step(batch)
+                loss, batch_size = self.train_step(batch)
                 current_data_size += batch_size
                 train_loss_list.append(loss.data.item()*batch_size)
                 training_loss = np.sum(train_loss_list)/current_data_size
                 loop.set_description(f"Epoch = {epoch}, "
                                      f"Loss = {training_loss:0.4f}, ")
 
-            training_loss = np.mean(train_loss_list)
+            training_loss = np.sum(train_loss_list)/current_data_size
             self.train_stat[f'Epoch {epoch}'] = training_loss.item()
             loop.write(f" Training loss:{training_loss:04f}")
     
-    def _train_step(self, batch):
+    def train_step(self, batch):
         inputs, targets = batch
         inputs = inputs.to(self.device)
         targets = targets.to(self.device)

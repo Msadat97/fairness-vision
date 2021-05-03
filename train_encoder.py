@@ -54,7 +54,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 vae = VAE(latent_dim=16)
 vae.load_state_dict(torch.load(
-    'saved_models/vae_state_dict_v1', map_location=torch.device('cpu')))
+    'saved_models/vae-state-dict-v2', map_location=torch.device('cpu')))
 vae.to(device)
 
 latent_encoder = LatentEncoder()
