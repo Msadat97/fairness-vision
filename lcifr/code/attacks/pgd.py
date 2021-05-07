@@ -1,6 +1,6 @@
 import torch
 
-from attacks import FGSM
+from .fgsm import FGSM
 
 
 class PGD:

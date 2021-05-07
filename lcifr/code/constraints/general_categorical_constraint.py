@@ -9,12 +9,10 @@ EPS = 1e-4
 
 class GeneralCategoricalConstraint(AbstractConstraint):
 
-    def __init__(self, model, delta, epsilon, latent_idx):
+    def __init__(self, model, delta, epsilon):
         super().__init__(model)
         self.delta = delta
         self.epsilon = epsilon + EPS
-        self.latent_idx = latent_idx
-
         # self.continuous_columns = continuous_columns
         self.n_tvars = 1
         self.n_gvars = 1
@@ -24,7 +22,7 @@ class GeneralCategoricalConstraint(AbstractConstraint):
         
         batch_size, num_features = x_batches[0].shape
         epsilon = torch.zeros(1, num_features).to(x_batches[0].device, dtype=x_batches[0].dtype)
-        epsilon[0, self.latent_idx] = self.epsilon
+        epsilon[0, :] = self.epsilon
         lb = x_batches[0] - self.epsilon
         ub = x_batches[0] + self.epsilon
         # lb[:, self.all_cat_columns] = -EPS
@@ -70,8 +68,6 @@ class SegmentConstraint(AbstractConstraint):
         
         p1 = x_batches[0] - self.epsilon
         p2 = x_batches[0] + self.epsilon
-        # lb[:, self.all_cat_columns] = -EPS
-        # ub[:, self.all_cat_columns] = +EPS
 
         return [Segment(p1, p2)]
 

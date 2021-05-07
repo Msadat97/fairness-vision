@@ -1,10 +1,5 @@
-from pickle import load
-from numpy.core.numeric import Inf
 import torch
 import torch.nn as nn
-from torch.nn.modules import module
-from torch.nn.modules.activation import ReLU
-# import torch.nn.functional as F
 
 
 class VAE(nn.Module):
@@ -16,35 +11,39 @@ class VAE(nn.Module):
         self.input_shape = input_shape
         
         self.cnn_encoder = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1),
+            nn.MaxPool2d(kernel_size=2),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),
         )
         
         self.shape, self.flatten_shape = self.get_shape()
         
         self.fc_encoder = nn.Sequential(
-            nn.Linear(self.flatten_shape, 64),
+            nn.Linear(self.flatten_shape, 1024),
             nn.ReLU(),   
-            nn.Linear(in_features=64, out_features=2*self.latent_dimension)
+            nn.Linear(in_features=1024, out_features=2*self.latent_dimension)
         )
         
         self.fc_decoder = nn.Sequential(
-            nn.Linear(in_features=self.latent_dimension, out_features=self.flatten_shape),
+            nn.Linear(in_features=self.latent_dimension, out_features=1024),
             nn.ReLU(),
+            nn.BatchNorm1d(num_features=1024),
+            nn.Linear(in_features=1024, out_features=self.flatten_shape),
+            nn.ReLU(),
+            nn.BatchNorm1d(self.flatten_shape)
         )
         
         self.cnn_decoder = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=3, stride=2, padding=1),
+            nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=4, stride=2, output_padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=3, stride=2, padding=1, output_padding=1),
-            nn.ReLU(),
+            nn.BatchNorm2d(num_features=64),
+            nn.ConvTranspose2d(in_channels=64, out_channels=1, kernel_size=4, stride=2),
         )
         
-        self.output_decoder = nn.ConvTranspose2d(in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
+        # self.output_decoder = nn.ConvTranspose2d(in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
 
     def get_shape(self):
         x = torch.zeros(self.input_shape)
@@ -70,7 +69,7 @@ class VAE(nn.Module):
         x = self.fc_decoder(z)
         x = torch.reshape(x, (x.shape[0], *self.shape))
         x = self.cnn_decoder(x)
-        x = self.output_decoder(x)
+        # x = self.output_decoder(x)
         x = torch.sigmoid(x)
         return x
     
@@ -172,7 +171,7 @@ class AutoEncoder(nn.Module):
             self._freeze_vae()
     
     def forward(self, x):
-        return self.decode(self.encode(x))
+        return self.encode(x)
 
     def encode(self, x):
         x = self.vae.decoder_forward(x)
@@ -211,10 +210,25 @@ class LatentClassifier(nn.Module):
         return self.softmax(self.linear(x))
 
 
-# from mnist import MnistLoader
-# m = MnistLoader()
-# x = m.get_data('x_train')
-# le = LatentEncoder()
-# enc = le.encode(x[0:1])
-# dec = le.decode(enc)
-# print(dec.shape)
+class DataModel(nn.Module):
+    def __init__(self, encoder: LatentEncoder, classifier: LatentClassifier):
+        super().__init__()
+        self.encoder = encoder
+        self.classifier = classifier
+    
+    def encode(self, x):
+        return self.encoder.encode(x)
+    
+    def classify(self, x):
+        return self.classifier(x)
+    
+    def forward(self, x):
+        return self.classify(self.encode(x))
+    
+    def predict(self, z):
+        x = self.encode(z)
+        return self.classifier.predict(x)
+    
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad_(False)

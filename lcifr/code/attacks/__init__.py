@@ -1,2 +1,2 @@
-from attacks.fgsm import FGSM
-from attacks.pgd import PGD
+from .fgsm import FGSM
+from .pgd import PGD

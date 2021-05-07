@@ -1,72 +1,86 @@
+from numpy.core import overrides
 import torch
 
-class Attack:
 
-    def __init__(self,
-                 model,
-                 loss_fn,
-                 eps,
-                 clip_min=None,
-                 clip_max=None,
-                 device=None,
-                 ) -> None:
+class FGSM:
 
+    def __init__(self, model, epsilon, loss_fn, clip_min, clip_max):
         self.model = model
-        self.loss_fn = loss_fn
-        self.eps = eps
+        self.epsilon = epsilon
         self.clip_min = clip_min
         self.clip_max = clip_max
         self.loss_fn = loss_fn
-        
-        if device is None:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        else:
-            self.device = device
-            
-    def fgsm_attack(self, input_vec, targets, eta=None):
 
+    def attack(self, images, targets, targeted):
         self.model.eval()
 
-        if eta is None:
-            eta = self.eps
+        images_ = images.clone().detach()
+        images_.requires_grad_()
 
-        input_vec_ = input_vec.clone().detach()
-        input_vec_.requires_grad_()
-
-        out = self.model(input_vec_)
+        logits = self.model(images_)
+        if logits.ndim == 1:
+            logits = logits.unsqueeze(0)
         self.model.zero_grad()
-        loss = self.loss_fn(out, targets)
+        loss = self.loss_fn(logits, targets, reduction='sum')
         loss.backward()
 
-        perturbed_vec = input_vec_ + eta*input_vec_.grad.sign()
+        if targeted:
+            perturbed_images = images_ - self.epsilon * images_.grad.sign()
+        else:
+            perturbed_images = images_ + self.epsilon * images_.grad.sign()
 
         if (self.clip_min is not None) or (self.clip_max is not None):
-            perturbed_vec.clamp_(min=self.clip_min, max=self.clip_max)
+            perturbed_images.clamp_(min=self.clip_min, max=self.clip_max)
 
-        return perturbed_vec
+        return perturbed_images.detach()
 
-    def pgd_attack(self, alpha, input_vec, targets, iterations, num_restarts, random_start=False):
 
+class PGD:
+    def __init__(self, model, epsilon, loss_fn, clip_min, clip_max):
+        self.model = model
+        self.epsilon = epsilon
+        self.clip_min = clip_min
+        self.clip_max = clip_max
+        self.loss_fn = loss_fn
+        self.device = torch.device(
+            'cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    def attack(self, alpha, inputs, iterations, targets, targeted, num_restarts, random_start):
         self.model.eval()
 
-        input_vec_ = input_vec.clone().detach()
-        input_vec_min = input_vec_ - self.eps
-        input_vec_max = input_vec_ + self.eps
+        inputs_ = inputs.clone().detach()
+        inputs_min, inputs_max = inputs_ - self.epsilon, inputs_ + self.epsilon
+
+        fgsm = FGSM(self.model, alpha, self.loss_fn,
+                    self.clip_min, self.clip_max)
 
         if not random_start:
             num_restarts = 1
 
         for i in range(num_restarts):
-            
             if random_start:
-                input_vec_ += torch.mul(
-                    self.eps,
-                    torch.rand_like(input_vec, device=self.device).uniform_(-1, 1)
+                inputs_ = inputs.clone().detach() + torch.mul(
+                    self.epsilon,
+                    torch.rand_like(inputs, device=self.device).uniform_(-1, 1)
                 )
 
             for _ in range(iterations):
-                input_vec_ = self.fgsm_attack(input_vec_, targets, eta=alpha)
-                input_vec_ = torch.max(input_vec_min, input_vec_)
-                input_vec_ = torch.min(input_vec_max, input_vec_)
+                inputs_ = fgsm.attack(inputs_, targets, targeted)
 
-        return input_vec_.detach()
+                # project onto epsilon-ball around original inputs
+                inputs_ = torch.max(inputs_min, inputs_)
+                inputs_ = torch.min(inputs_max, inputs_)
+
+        return inputs_.detach()
+
+
+class SegmentPDG(PGD):
+    def __init__(self, model, epsilon, loss_fn, clip_min, clip_max, idx):
+        super().__init__(model, epsilon, loss_fn, clip_min, clip_max)
+        self.idx = idx 
+        self.eps = epsilon
+        
+    def attack(self, alpha, inputs, iterations, targets, targeted, num_restarts, random_start):
+        self.epsilon = torch.zeros_like(inputs[0:1])
+        self.epsilon[:, self.idx] = self.eps
+        return super().attack(alpha, inputs, iterations, targets, targeted, num_restarts, random_start)

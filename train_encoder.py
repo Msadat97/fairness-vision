@@ -1,60 +1,32 @@
-from datetime import datetime
 from lcifr.code.constraints.general_categorical_constraint import SegmentConstraint
-from dl2.querying.models.cifar import models
-from os import makedirs, path
-from argparse import ArgumentParser
-from utils import accuracy, predict
-from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import torch.utils.data
 from lcifr.code.experiments.args_factory import get_args
-from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
-                             confusion_matrix, f1_score)
-
-# from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-
 from mnist import MnistLoader
-
 from lcifr.code.constraints import GeneralCategoricalConstraint
 from dl2.training.supervised.oracles import DL2_Oracle
 from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from lcifr.code.utils.statistics import Statistics
-
-
-def get_latents(vae: VAE, data_loader, device=torch.device('cpu')):
-    z_list = []
-    y_list = []
-    for batch in data_loader:
-        inputs, targets = batch
-        inputs = inputs.to(device)
-        targets = targets.to(device)
-        z_batch, _, _ = vae.encoder_forward(inputs)
-        z_list.append(z_batch)
-        y_list.append(targets)
-    z_tensor = torch.cat(z_list)
-    y_tensor = torch.cat(y_list)
-    data_set = TensorDataset(z_tensor, y_tensor)
-    batch_size = data_loader.batch_size
-    return DataLoader(data_set, batch_size=batch_size)
+from utils import accuracy, get_latents
 
 
 # parameters
-lr = 0.001
-dl2_lr = 2.5
+lr = 0.005
+dl2_lr = 0.05
 patience = 5
 weight_decay = 0.01
 dl2_iters = 25
-dl2_weight = 1.0
+dl2_weight = 50
 dec_weight = 0.0
-num_epochs = 5
+num_epochs = 2
 args = get_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 vae = VAE(latent_dim=16)
 vae.load_state_dict(torch.load(
-    'saved_models/vae-state-dict-v2', map_location=torch.device('cpu')))
+    'saved_models/vae-state-dict-v3', map_location=torch.device('cpu')))
 vae.to(device)
 
 latent_encoder = LatentEncoder()
@@ -70,7 +42,7 @@ data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.
 train_loader, val_loader = data.train_loader, data.val_loader
 train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
 
-constraint = SegmentConstraint(model=autoencoder, delta=0.01, epsilon=0.5, latent_idx=5)
+constraint = SegmentConstraint(model=autoencoder, delta=0.001, epsilon=1, latent_idx=5)
 oracle = DL2_Oracle(
     learning_rate=dl2_lr, net=autoencoder,
     use_cuda=torch.cuda.is_available(),
@@ -83,6 +55,7 @@ optimizer = torch.optim.Adam(
     list(autoencoder.parameters()) + list(classifier.parameters()),
     lr=lr, weight_decay=weight_decay
 )
+
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, 'min', patience=patience, factor=0.5
 )
@@ -148,6 +121,8 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         _, dl2_loss, _ = oracle.evaluate(
             x_batches, y_batches, z_batches, args=args
         )
+        
+        # dl2_loss = 0.0
         mix_loss = torch.mean(
             cross_entropy + dl2_weight * dl2_loss +
             dec_weight * l2_loss
@@ -183,7 +158,7 @@ for epoch in range(num_epochs):
     scheduler.step(valid_mix_loss.mean())
 
     torch.save(
-        autoencoder.state_dict(), 'saved_models/vae-lcifr-trained-v3'
+        autoencoder.state_dict(), 'saved_models/vae-lcifr-trained-v6'
     )
     # torch.save(
     #     classifier.state_dict(),

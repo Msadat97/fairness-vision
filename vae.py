@@ -38,13 +38,14 @@ if torch.cuda.is_available():
 #         nn.init.constant_(m.bias, 0.05)
 
 if __name__ == "__main__":
-    data = MnistLoader(batch_size=128, shuffle=True, normalize=False)
-    vae = VAE(latent_dim=16)
+    data = MnistLoader(batch_size=100, shuffle=True, normalize=False)
+    vae = VAE(latent_dim=10)
+    # x = data.get_data('x_train')[0:5].cuda()
     # vae = LinearVAE(16)
     vae.to(device)
     # vae.apply(weights_init)
 
-    optimizer = optim.RMSprop(vae.parameters(), lr=2.5e-3)
-    trainer = VAETrainer(vae, optimizer, train_loader=data.train_loader)
-    trainer.train(epochs=30)
-    torch.save(vae.state_dict(), 'vae-state-dict-v2')
+    optimizer = optim.Adam(vae.parameters(), lr=1e-3)
+    trainer = VAETrainer(vae, optimizer, train_loader=data.train_loader, beta=4)
+    trainer.train(epochs=75)
+    torch.save(vae.state_dict(), 'saved_models/vae-state-dict-v4')
