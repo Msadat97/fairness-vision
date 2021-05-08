@@ -13,14 +13,14 @@ from utils import accuracy, get_latents
 from attack import SegmentPDG
 
 # parameters
-lr = 2.5e-4
+lr = 1e-3
 dl2_lr = 2.5
 patience = 3
 weight_decay = 0.01
 dl2_iters = 25
 dl2_weight = 10.0
 dec_weight = 0.0
-num_epochs = 50
+num_epochs = 10
 args = get_args()
 args.adversarial = True
 
@@ -58,8 +58,8 @@ data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.
 train_loader, val_loader = data.train_loader, data.val_loader
 train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
 
-delta = 0.01
-epsilon = 0.25
+delta = 0.005
+epsilon = 0.5
 constraint = GeneralCategoricalConstraint(model=autoencoder, delta=delta, epsilon=epsilon)
 oracle = DL2_Oracle(
     learning_rate=args.dl2_lr, net=autoencoder,
@@ -171,7 +171,7 @@ for epoch in range(num_epochs):
     scheduler.step(np.mean(valid_loss))
 
     torch.save(
-        classifier.state_dict(), "saved_models/robust-classifier-v2"
+        classifier.state_dict(), "saved_models/test-classifier-v0"
     )
 
 # writer.close()

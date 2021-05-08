@@ -211,7 +211,7 @@ class LatentClassifier(nn.Module):
 
 
 class DataModel(nn.Module):
-    def __init__(self, encoder: LatentEncoder, classifier: LatentClassifier):
+    def __init__(self, encoder: AutoEncoder, classifier: LatentClassifier):
         super().__init__()
         self.encoder = encoder
         self.classifier = classifier

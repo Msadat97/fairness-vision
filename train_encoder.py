@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 from lcifr.code.constraints.general_categorical_constraint import SegmentConstraint
 import torch.nn as nn
 import torch.utils.data
@@ -9,17 +10,18 @@ from dl2.training.supervised.oracles import DL2_Oracle
 from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from lcifr.code.utils.statistics import Statistics
 from utils import accuracy, get_latents
-
+from torch.utils.tensorboard import SummaryWriter
+import seaborn as sns
 
 # parameters
-lr = 0.005
-dl2_lr = 0.05
+lr = 1e-3
+dl2_lr = 1e-3
 patience = 5
 weight_decay = 0.01
 dl2_iters = 25
-dl2_weight = 50
+dl2_weight = 30
 dec_weight = 0.0
-num_epochs = 2
+num_epochs = 25
 args = get_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -42,7 +44,7 @@ data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.
 train_loader, val_loader = data.train_loader, data.val_loader
 train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
 
-constraint = SegmentConstraint(model=autoencoder, delta=0.001, epsilon=1, latent_idx=5)
+constraint = SegmentConstraint(model=autoencoder, delta=0.005, epsilon=0.5, latent_idx=5)
 oracle = DL2_Oracle(
     learning_rate=dl2_lr, net=autoencoder,
     use_cuda=torch.cuda.is_available(),
@@ -143,8 +145,19 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             f'mix_loss={tot_mix_loss.mean():.4f}, '
             f'acc = {acc:.4f}'
         )
+    
+    l_inf_diffs = torch.cat(l_inf_diffs)
+    sns.histplot(l_inf_diffs.detach().cpu().numpy())
+    plt.show()
+    writer.add_scalar('Loss/%s' % split, tot_mix_loss.mean(), epoch)
+    writer.add_scalar('DL2 Loss/%s' % split, tot_dl2_loss.mean(), epoch)
+    writer.add_scalar('Cross Entropy/%s' % split, tot_ce_loss.mean(), epoch)
+    writer.add_histogram('L-inf Differences/%s' %split, l_inf_diffs, epoch)
+        
     return tot_mix_loss
 
+log_dir = "logs/"
+writer = SummaryWriter(log_dir)
 
 for epoch in range(num_epochs):
     
@@ -164,3 +177,4 @@ for epoch in range(num_epochs):
     #     classifier.state_dict(),
     #     path.join(models_dir, f'classifier_{epoch}.pt')
     # )
+writer.close()

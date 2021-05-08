@@ -13,6 +13,7 @@ from lcifr.code.constraints.general_categorical_constraint import SegmentConstra
 from utils import accuracy, get_latents
 from attack import SegmentPDG
 
+
 def standard_acc(model, data, device):
     model = model.to(device)
     pred_list, target_list = [], []
@@ -26,18 +27,19 @@ def standard_acc(model, data, device):
     
 def robust_acc(device, epsilon: float, data: DataLoader, model: DataModel):
     prediction_list, target_list = [], []
-    running_sum = 0
     latent_pdg = SegmentPDG(
         model.encoder, epsilon, F.l1_loss,
         clip_min=float('-inf'), clip_max=float('inf'), idx=5
     )
-    for inputs, targets in tqdm(data):
+    for _, batch in enumerate(tqdm(data)):
+        inputs, targets = batch
         inputs = inputs.to(device)
         targets = targets.to(device)
         targets = targets.type(torch.long)
         
         latents = model.encode(inputs)
         inputs_ = latent_pdg.attack(epsilon/10, inputs, 20, latents, False, 1, True)
+        
         latents_ = model.encode(inputs_)
         deltas, _ = torch.max(torch.abs(latents_ - latents), dim=1)
         deltas = deltas[:, None]
@@ -66,10 +68,11 @@ def robust_acc(device, epsilon: float, data: DataLoader, model: DataModel):
         prediction_list.append(model.classifier.predict(latent_advs))
         target_list.append(targets)
         
-    print(running_sum/len(data.dataset))
     return accuracy(prediction_list, target_list)
 
 
+encoder_path = "saved_models/vae-lcifr-trained-v6"
+classifier_path = "saved_models/test-classifier-v0"
 
 # parameters
 lr = 0.005
@@ -100,7 +103,7 @@ latent_encoder.to(device)
 autoencoder = AutoEncoder(vae, latent_encoder)
 autoencoder.load_state_dict(
     torch.load(
-        "saved_models/vae-lcifr-trained-v6",
+        encoder_path,
         map_location=lambda storage, loc: storage
     )
 )
@@ -110,7 +113,7 @@ classifier = LatentClassifier(
     latent_encoder.flatten_shape, latent_encoder.num_classes)
 classifier.load_state_dict(
     torch.load(
-        "saved_models/robust-classifier-v2", 
+        classifier_path, 
         map_location=torch.device('cpu')
     )
 )
@@ -126,8 +129,8 @@ val_loader = get_latents(vae, val_loader, device)
 test_loader = get_latents(vae, test_loader, device)
 
 
-delta = 0.001
-epsilon = 1
+delta = 0.005
+epsilon = 0.5
 constraint = SegmentConstraint(model=autoencoder, delta=delta, epsilon=epsilon, latent_idx=5)
 oracle = DL2_Oracle(
     learning_rate=args.dl2_lr, net=autoencoder,
@@ -144,9 +147,10 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, 'min', patience=patience, factor=0.5
 )
 
-robust_acc = robust_acc(device, epsilon, test_loader, data_model)
-acc = standard_acc(data_model, test_loader, device)
-print(acc, robust_acc)
+robust = robust_acc(device, epsilon, test_loader, data_model)
+acc = standard_acc(data_model,  test_loader, device)
+print(f'accuracy = {acc}')
+print(f'robust-accuracy = {robust}')
 
 # for batch in train_loader:
 #     inputs, _ = batch
