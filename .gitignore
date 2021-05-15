@@ -114,6 +114,5 @@ dmypy.json
 .pyre/
 
 .vscode/
-*.xml
-lcifr/.DS_Store
-lcifr/code/.DS_Store
+.idea/
+**/.DS_Store
