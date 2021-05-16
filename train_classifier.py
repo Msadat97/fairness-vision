@@ -12,6 +12,10 @@ from lcifr.code.constraints.general_categorical_constraint import GeneralCategor
 from utils import accuracy, get_latents
 from attack import SegmentPDG
 
+vae_path = "saved_models/vae-state-dict-v3"
+ae_path = "saved_models/vae-base-trained-v1"
+classifier_path = "saved_models/base-classifier-v0"
+
 # parameters
 lr = 1e-3
 dl2_lr = 2.5
@@ -20,16 +24,18 @@ weight_decay = 0.01
 dl2_iters = 25
 dl2_weight = 10.0
 dec_weight = 0.0
-num_epochs = 10
+num_epochs = 5
+delta = 0.005
+epsilon = 0.5
 args = get_args()
-args.adversarial = True
+args.adversarial = False
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 vae = VAE(latent_dim=16)
 vae.load_state_dict(
     torch.load(
-        'saved_models/vae-state-dict-v3', map_location=torch.device('cpu')
+        vae_path, map_location=torch.device('cpu')
         )
     )
 vae.to(device)
@@ -49,7 +55,7 @@ for param in autoencoder.parameters():
 
 autoencoder.load_state_dict(
     torch.load(
-        "saved_models/vae-lcifr-trained-v6",
+        ae_path,
         map_location=lambda storage, loc: storage
     )
 )
@@ -58,8 +64,6 @@ data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.
 train_loader, val_loader = data.train_loader, data.val_loader
 train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
 
-delta = 0.005
-epsilon = 0.5
 constraint = GeneralCategoricalConstraint(model=autoencoder, delta=delta, epsilon=epsilon)
 oracle = DL2_Oracle(
     learning_rate=args.dl2_lr, net=autoencoder,
@@ -171,7 +175,7 @@ for epoch in range(num_epochs):
     scheduler.step(np.mean(valid_loss))
 
     torch.save(
-        classifier.state_dict(), "saved_models/test-classifier-v0"
+        classifier.state_dict(), classifier_path
     )
 
 # writer.close()

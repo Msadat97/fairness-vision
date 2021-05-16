@@ -2,9 +2,9 @@ from numpy.core import overrides
 import torch
 
 
-class FGSM:
-
+class FGSM(object):
     def __init__(self, model, epsilon, loss_fn, clip_min, clip_max):
+        super().__init__()
         self.model = model
         self.epsilon = epsilon
         self.clip_min = clip_min
@@ -35,8 +35,9 @@ class FGSM:
         return perturbed_images.detach()
 
 
-class PGD:
+class PGD(object):
     def __init__(self, model, epsilon, loss_fn, clip_min, clip_max):
+        super().__init__()
         self.model = model
         self.epsilon = epsilon
         self.clip_min = clip_min
