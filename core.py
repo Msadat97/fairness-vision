@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 from scipy.stats import norm, binom_test
 import numpy as np
@@ -32,7 +33,7 @@ class Smooth(object):
 
         self.range_max = 1.0
 
-    def certify(self, x: torch.tensor, n0: int, n: int, alpha: float, batch_size: int) -> (int, float):
+    def certify(self, x: torch.tensor, n0: int, n: int, alpha: float, batch_size: int) -> Tuple[int, float]:
         """ Monte Carlo algorithm for certifying, with probability at least 1 - alpha, that the confidence score is
         above a certain threshold  within some L2 radius.
 
