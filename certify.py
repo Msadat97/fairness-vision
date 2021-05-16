@@ -1,4 +1,3 @@
-import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
@@ -14,6 +13,24 @@ from utils import accuracy, get_latents
 from attack import SegmentPDG
 
 
+vae_path = "saved_models/vae-state-dict-v3"
+ae_path = "saved_models/vae-base-trained-v1"
+classifier_path = "saved_models/base-classifier-v0"
+
+# parameters
+lr = 0.005
+dl2_lr = 2.5
+patience = 5
+weight_decay = 0.01
+dl2_iters = 25
+dl2_weight = 10.0
+dec_weight = 0.0
+num_epochs = 10
+delta = 0.005
+epsilon = 0.5
+args = get_args()
+
+
 def standard_acc(model, data, device):
     model = model.to(device)
     pred_list, target_list = [], []
@@ -26,6 +43,7 @@ def standard_acc(model, data, device):
     
     
 def robust_acc(device, epsilon: float, data: DataLoader, model: DataModel):
+    model = model.to(device)
     prediction_list, target_list = [], []
     latent_pdg = SegmentPDG(
         model.encoder, epsilon, F.l1_loss,
@@ -43,47 +61,33 @@ def robust_acc(device, epsilon: float, data: DataLoader, model: DataModel):
         latents_ = model.encode(inputs_)
         deltas, _ = torch.max(torch.abs(latents_ - latents), dim=1)
         deltas = deltas[:, None]
-        # attack = PGD(
-        #     classifier, deltas, F.cross_entropy,
-        #     clip_min=float('-inf'), clip_max=float('inf')
-        # )
-        # latent_advs = attack.attack(
-        #     delta / 10, latents, 20, targets,
-        #     targeted=False, num_restarts=1, random_start=True
-        # )
-        latent_advs = []
-        for delta, latent, target in zip(deltas, latents, targets):
-            attack = PGD(
-                model.classifier, delta, F.cross_entropy,
-                clip_min=float('-inf'), clip_max=float('inf')
-            )
-            latent = latent.unsqueeze(0)
-            target = target.unsqueeze(0)
-            latent_adv = attack.attack(
-                delta / 10, latent, 20, target,
-                targeted=False, num_restarts=1, random_start=True
-            )
-            latent_advs.append(latent_adv)
-        latent_advs = torch.cat(latent_advs)
+        attack = PGD(
+            classifier, deltas, F.cross_entropy,
+            clip_min=float('-inf'), clip_max=float('inf')
+        )
+        latent_advs = attack.attack(
+            deltas / 10, latents, 20, targets,
+            targeted=False, num_restarts=1, random_start=True
+        )
+        # latent_advs = []
+        # for delta, latent, target in zip(deltas, latents, targets):
+        #     attack = PGD(
+        #         model.classifier, delta, F.cross_entropy,
+        #         clip_min=float('-inf'), clip_max=float('inf')
+        #     )
+        #     latent = latent.unsqueeze(0)
+        #     target = target.unsqueeze(0)
+        #     latent_adv = attack.attack(
+        #         delta / 10, latent, 20, target,
+        #         targeted=False, num_restarts=1, random_start=True
+        #     )
+        #     latent_advs.append(latent_adv)
+        # latent_advs = torch.cat(latent_advs)
         prediction_list.append(model.classifier.predict(latent_advs))
         target_list.append(targets)
         
     return accuracy(prediction_list, target_list)
 
-
-encoder_path = "saved_models/vae-lcifr-trained-v6"
-classifier_path = "saved_models/test-classifier-v0"
-
-# parameters
-lr = 0.005
-dl2_lr = 2.5
-patience = 5
-weight_decay = 0.01
-dl2_iters = 25
-dl2_weight = 10.0
-dec_weight = 0.0
-num_epochs = 10
-args = get_args()
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -91,7 +95,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 vae = VAE(latent_dim=16)
 vae.load_state_dict(
     torch.load(
-        "saved_models/vae-state-dict-v3",
+        vae_path,
         map_location=torch.device('cpu')
     )
 )
@@ -103,7 +107,7 @@ latent_encoder.to(device)
 autoencoder = AutoEncoder(vae, latent_encoder)
 autoencoder.load_state_dict(
     torch.load(
-        encoder_path,
+        ae_path,
         map_location=lambda storage, loc: storage
     )
 )
@@ -129,8 +133,6 @@ val_loader = get_latents(vae, val_loader, device)
 test_loader = get_latents(vae, test_loader, device)
 
 
-delta = 0.005
-epsilon = 0.5
 constraint = SegmentConstraint(model=autoencoder, delta=delta, epsilon=epsilon, latent_idx=5)
 oracle = DL2_Oracle(
     learning_rate=args.dl2_lr, net=autoencoder,
@@ -151,12 +153,3 @@ robust = robust_acc(device, epsilon, test_loader, data_model)
 acc = standard_acc(data_model,  test_loader, device)
 print(f'accuracy = {acc}')
 print(f'robust-accuracy = {robust}')
-
-# for batch in train_loader:
-#     inputs, _ = batch
-#     inputs = inputs.to(device)
-#     targets = autoencoder.encode(inputs)
-#     inputs_ = latent_pdg.attack(delta/10, inputs, 20, targets, targeted=False, num_restarts=1, random_start=True)
-#     targets_ = autoencoder.encode(inputs_)
-#     print((targets_ - targets).max(1))
-#     break

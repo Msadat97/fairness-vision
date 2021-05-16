@@ -12,23 +12,27 @@ from lcifr.code.utils.statistics import Statistics
 from utils import accuracy, get_latents
 from torch.utils.tensorboard import SummaryWriter
 import seaborn as sns
+import numpy as np
+
+vae_path = "saved_models/vae-state-dict-v3"
+ae_path = "saved_models/vae-lcifr-trained-v6"
 
 # parameters
 lr = 1e-3
-dl2_lr = 1e-3
+dl2_lr = 0.005
 patience = 5
 weight_decay = 0.01
 dl2_iters = 25
-dl2_weight = 30
+dl2_weight = 50
 dec_weight = 0.0
-num_epochs = 25
+num_epochs = 50
 args = get_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 vae = VAE(latent_dim=16)
 vae.load_state_dict(torch.load(
-    'saved_models/vae-state-dict-v3', map_location=torch.device('cpu')))
+    vae_path, map_location=torch.device('cpu')))
 vae.to(device)
 
 latent_encoder = LatentEncoder()
@@ -64,7 +68,16 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
 
 
 def run(autoencoder, classifier, optimizer, loader, split, epoch):
+    
+    autoencoder.train()
+    classifier.train()
+
+    # if split == 'train':
+    #     autoencoder.train()
+    #     classifier.train()
+        
     predictions, targets, l_inf_diffs = list(), list(), list()
+    constrain_satisfactinos = []
     tot_mix_loss, tot_ce_loss, tot_dl2_loss = Statistics.get_stats(3)
 
     progress_bar = tqdm(loader)
@@ -87,7 +100,6 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             classifier.train()
 
         latent_data = autoencoder.encode(data_batch)
-
         data_batch_dec = autoencoder.decode(latent_data)
         l2_loss = torch.norm(data_batch_dec - data_batch, dim=1)
 
@@ -99,9 +111,6 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         predictions.append(predictions_batch.detach().cpu())
         targets.append(targets_batch.detach().cpu())
 
-        autoencoder.eval()
-        classifier.eval()
-
         if oracle.constraint.n_gvars > 0:
             domains = oracle.constraint.get_domains(x_batches, y_batches)
             z_batches = oracle.general_attack(
@@ -111,19 +120,16 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
         else:
             z_batches = None
 
-        latent_adv = autoencoder.encode(z_batches[0]).detach()
+        latent_rep = autoencoder.encode(z_batches[0]).detach()
         l_inf_diffs.append(
-            torch.abs(latent_data - latent_adv).max(1)[0].detach().cpu()
+            torch.abs(latent_data - latent_rep).max(1)[0].detach().cpu()
         )
 
-        if split == 'train':
-            autoencoder.train()
-            classifier.train()
-
-        _, dl2_loss, _ = oracle.evaluate(
+        _, dl2_loss, sat = oracle.evaluate(
             x_batches, y_batches, z_batches, args=args
         )
         
+        constrain_satisfactinos.append(sat)
         # dl2_loss = 0.0
         mix_loss = torch.mean(
             cross_entropy + dl2_weight * dl2_loss +
@@ -143,12 +149,13 @@ def run(autoencoder, classifier, optimizer, loader, split, epoch):
             f'[{split}] epoch={epoch:d}, ce_loss={tot_ce_loss.mean():.4f}, '
             f'dl2_loss={tot_dl2_loss.mean():.4f}, '
             f'mix_loss={tot_mix_loss.mean():.4f}, '
-            f'acc = {acc:.4f}'
+            f'acc = {acc:.4f}, ' 
+            f'sat = {np.mean(sat):.4f}'
         )
     
     l_inf_diffs = torch.cat(l_inf_diffs)
-    sns.histplot(l_inf_diffs.detach().cpu().numpy())
-    plt.show()
+    satisfaction = np.mean(np.concatenate(constrain_satisfactinos))
+    print(f'[{split}]: satisfaction_rate = {satisfaction}')
     writer.add_scalar('Loss/%s' % split, tot_mix_loss.mean(), epoch)
     writer.add_scalar('DL2 Loss/%s' % split, tot_dl2_loss.mean(), epoch)
     writer.add_scalar('Cross Entropy/%s' % split, tot_ce_loss.mean(), epoch)
@@ -161,7 +168,7 @@ writer = SummaryWriter(log_dir)
 
 for epoch in range(num_epochs):
     
-    run(autoencoder, classifier, optimizer, train_loader, 'train', epoch)
+    run(autoencoder, classifier, optimizer, val_loader, 'train', epoch)
 
     autoencoder.eval()
     classifier.eval()
@@ -171,7 +178,7 @@ for epoch in range(num_epochs):
     scheduler.step(valid_mix_loss.mean())
 
     torch.save(
-        autoencoder.state_dict(), 'saved_models/vae-lcifr-trained-v6'
+        autoencoder.state_dict(), ae_path
     )
     # torch.save(
     #     classifier.state_dict(),

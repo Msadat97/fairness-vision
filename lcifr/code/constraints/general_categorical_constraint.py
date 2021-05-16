@@ -66,8 +66,8 @@ class SegmentConstraint(AbstractConstraint):
         epsilon = torch.zeros(1, num_features).to(x_batches[0].device, dtype=x_batches[0].dtype)
         epsilon[0, self.latent_idx] = self.epsilon
         
-        p1 = x_batches[0] - self.epsilon
-        p2 = x_batches[0] + self.epsilon
+        p1 = x_batches[0] - epsilon
+        p2 = x_batches[0] + epsilon
 
         return [Segment(p1, p2)]
 
