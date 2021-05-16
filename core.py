@@ -12,7 +12,12 @@ class Smooth(object):
     # to abstain, Smooth returns this int
     ABSTAIN = -1
 
-    def __init__(self, base_classifier: torch.nn.Module, num_classes: int, sigma: float, confidence_measure: str):
+    def __init__(self, 
+                 base_classifier: torch.nn.Module, 
+                 num_classes: int, 
+                 sigma: float, 
+                 input_radius: float,
+                 confidence_measure: str):
         """
         :param base_classifier: maps from [batch x channel x height x width] to [batch x num_classes]
         :param num_classes:
@@ -22,6 +27,8 @@ class Smooth(object):
         self.base_classifier = base_classifier
         self.num_classes = num_classes
         self.sigma = sigma
+        self.input_radius = input_radius
+        
         self.confidence_measure = confidence_measure
 
         if self.confidence_measure == 'margin':
@@ -67,26 +74,11 @@ class Smooth(object):
         # print(exp_bar)
 
         if exp_bar < self.exp_cutoff:
-            return Smooth.ABSTAIN, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+            return Smooth.ABSTAIN, 0.0
         
-        exp_cdf_00 = self._exp_lbd(thresholds, eps, 0.0, self.range_min)
-        exp_cdf_25 = self._exp_lbd(thresholds, eps, 0.25, self.range_min)
-        exp_cdf_50 = self._exp_lbd(thresholds, eps, 0.5, self.range_min)
-        exp_cdf_75 = self._exp_lbd(thresholds, eps, 0.75, self.range_min)
-        exp_cdf_100 = self._exp_lbd(thresholds, eps, 1.0, self.range_min)
-        exp_cdf_125 = self._exp_lbd(thresholds, eps, 1.25, self.range_min)
-        exp_cdf_150 = self._exp_lbd(thresholds, eps, 1.50, self.range_min)
+        exp_cdf = self._exp_lbd(thresholds, eps, self.input_radius, self.range_min)
 
-        exp_00 = avg_score[cAHat] - ((self.range_max - self.range_min) * eps) # lower bound on expected confidence score using Hoeffding’s inequality
-        exp_25 = self._exp_naive(exp_00, 0.25, self.range_min, self.range_max) # norm.cdf(norm.ppf(exp_00, scale=self.sigma), loc=0.25, scale=self.sigma)
-        exp_50 = self._exp_naive(exp_00, 0.50, self.range_min, self.range_max) # norm.cdf(norm.ppf(exp_00, scale=self.sigma), loc=0.5, scale=self.sigma)
-        exp_75 = self._exp_naive(exp_00, 0.75, self.range_min, self.range_max) # norm.cdf(norm.ppf(exp_00, scale=self.sigma), loc=0.75, scale=self.sigma)
-        exp_100 = self._exp_naive(exp_00, 1.0, self.range_min, self.range_max) # norm.cdf(norm.ppf(exp_00, scale=self.sigma), loc=1.0, scale=self.sigma)
-        exp_125 = self._exp_naive(exp_00, 1.25, self.range_min, self.range_max) # norm.cdf(norm.ppf(exp_00, scale=self.sigma), loc=1.25, scale=self.sigma)
-        exp_150 = self._exp_naive(exp_00, 1.50, self.range_min, self.range_max) # norm.cdf(norm.ppf(exp_00, scale=self.sigma), loc=1.50, scale=self.sigma)
-
-        return cAHat, exp_cdf_00, exp_cdf_25, exp_cdf_50, exp_cdf_75, exp_cdf_100, exp_cdf_125, exp_cdf_150,\
-            exp_00, exp_25, exp_50, exp_75, exp_100, exp_125, exp_150
+        return cAHat, exp_cdf
 
     def predict(self, x: torch.tensor, n: int, alpha: float, batch_size: int) -> int:
         """ Monte Carlo algorithm for evaluating the prediction of g at x.  With probability at least 1 - alpha, the
@@ -110,7 +102,7 @@ class Smooth(object):
             return Smooth.ABSTAIN
         else:
             return top2[0]
-
+    
     def _sample_noise(self, x: torch.tensor, num: int, batch_size,  top_class=-1):
         """ Sample the base classifier's prediction under noisy corruptions of the input x.
 
@@ -186,19 +178,4 @@ class Smooth(object):
                 exp_bar += (thresholds[i] - thresholds[i - 1]) * prob
 
         return exp_bar
-
-    def _exp_naive(self, exp0: float, disp: float, range_min: float, range_max: float) -> float:
-        """
-        Function to compute an upper bound on the tightest lower bound on the expected confidence score using the
-        baseline method.
-
-        :param exp0: lower bound on expected confidence score
-        :param disp: L2 length of displacement from input point
-        :param range_min: minimum value in the range of the confidence scores
-        :param range_max: maximum value in the range of the confidence scores
-        :return: lower bound on the expected score, after a displacement, using the baseline method
-        """
-        prob = (exp0 - range_min)/(range_max - range_min)
-        phi_inv = norm.ppf(prob, scale=self.sigma)
-        prob = norm.cdf(phi_inv, loc=disp, scale=self.sigma)
-        return (range_max * prob) + (range_min * (1 - prob))
+    
