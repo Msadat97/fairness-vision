@@ -176,13 +176,11 @@ class Smooth(object):
         num_thr = thresholds.size
         for i in range(num_thr):
             prob = max(((num_thr - i) / num_thr) - eps, 0)
+            phi_inv = norm.ppf(prob, scale=self.sigma)
+            prob = norm.cdf(phi_inv, loc=disp, scale=self.sigma)
             if i == 0:
-                phi_inv = norm.ppf(prob, scale=self.sigma)
-                prob = norm.cdf(phi_inv, loc=disp, scale=self.sigma)
                 exp_bar += (thresholds[i] - range_min) * prob
             else:
-                phi_inv = norm.ppf(prob, scale=self.sigma)
-                prob = norm.cdf(phi_inv, loc=disp, scale=self.sigma)
                 exp_bar += (thresholds[i] - thresholds[i - 1]) * prob
 
         return exp_bar
