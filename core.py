@@ -182,7 +182,6 @@ class Smooth(object):
                 exp_bar += (thresholds[i] - range_min) * prob
             else:
                 exp_bar += (thresholds[i] - thresholds[i - 1]) * prob
-
         return exp_bar
 
     def _exp_naive(self, exp0: float, disp: float, range_min: float, range_max: float) -> float:
