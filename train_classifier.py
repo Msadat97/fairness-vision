@@ -62,7 +62,8 @@ autoencoder.load_state_dict(
 
 data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
 train_loader, val_loader = data.train_loader, data.val_loader
-train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
+train_loader = get_latents(vae=vae, data_loader=train_loader, shuffle=True, device=device)
+val_loader = get_latents(vae=vae, data_loader=val_loader, shuffle=False, device=device)
 
 constraint = GeneralCategoricalConstraint(model=autoencoder, delta=delta, epsilon=epsilon)
 oracle = DL2_Oracle(

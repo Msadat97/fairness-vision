@@ -9,13 +9,14 @@ from lcifr.code.constraints import GeneralCategoricalConstraint
 from dl2.training.supervised.oracles import DL2_Oracle
 from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from lcifr.code.utils.statistics import Statistics
-from utils import accuracy, get_latents
+from utils import get_latents
+from metrics import accuracy
 from torch.utils.tensorboard import SummaryWriter
 import seaborn as sns
 import numpy as np
 
 vae_path = "saved_models/vae-state-dict-v3"
-ae_path = "saved_models/vae-lcifr-trained-v6"
+ae_path = "saved_models/vae-lcifr-trained-v7"
 
 # parameters
 lr = 1e-3
@@ -46,7 +47,8 @@ classifier.to(device)
 
 data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
 train_loader, val_loader = data.train_loader, data.val_loader
-train_loader, val_loader = get_latents(vae, train_loader, device), get_latents(vae, val_loader, device)
+train_loader = get_latents(vae=vae, data_loader=train_loader, shuffle=True, device=device)
+val_loader = get_latents(vae=vae, data_loader=val_loader, shuffle=False, device=device)
 
 constraint = SegmentConstraint(model=autoencoder, delta=0.005, epsilon=0.5, latent_idx=5)
 oracle = DL2_Oracle(

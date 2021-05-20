@@ -4,7 +4,6 @@ from tqdm.autonotebook import tqdm
 import torch
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from utils import get_label, accuracy
 
 
 class VAETrainer(object):

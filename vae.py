@@ -11,7 +11,6 @@ from mnist import MnistLoader
 from model import VAE, LatentEncoder
 from train import VAETrainer, LatentTrainer
 from torch import nn
-from linear_vae import LinearVAE
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

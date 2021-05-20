@@ -49,12 +49,12 @@ class MnistLoader:
             )
             self.val_loader = None
         else:
-            train, val = self._train_val_split(split_ratio)
+            self.train_data, self.val_data = self._train_val_split(split_ratio)
             self.train_loader = DataLoader(
-                train, batch_size=batch_size, shuffle=True
+                self.train_data, batch_size=batch_size, shuffle=True
             )
             self.val_loader = DataLoader(
-                val, batch_size=batch_size, shuffle=False
+                self.val_data, batch_size=batch_size, shuffle=False
             )
         self.test_loader = DataLoader(
             self.test_data, batch_size=batch_size, shuffle=False
