@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import numpy as np 
 
+
 class BaseVAE(nn.Module):
     def __init__(self, latent_dim, input_dim):
         super().__init__()
