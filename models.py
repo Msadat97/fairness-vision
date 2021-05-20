@@ -76,11 +76,11 @@ class LinearVAE(BaseVAE):
 
 class VAE(BaseVAE):
 
-    def __init__(self, latent_dim=2, input_shape=(1, 1, 28, 28)):
-        super().__init__()
+    def __init__(self, latent_dim=2, input_dim=(1, 1, 28, 28)):
+        super().__init__(latent_dim, input_dim)
         
         self.latent_dim = latent_dim
-        self.input_dim = input_shape
+        self.input_dim = input_dim
         
         self.cnn_encoder = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1),
