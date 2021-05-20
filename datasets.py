@@ -4,7 +4,7 @@ from torch.utils import data
 from torch.utils.data import Dataset, DataLoader
 import torch
 from torchvision.datasets import MNIST, CelebA
-from model import VAE
+from models import VAE
 import os
 from pathlib import Path
 import os
@@ -42,7 +42,7 @@ class CostumMNIST(Dataset):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         data = data.to(device)
         vae = self.vae.to(device)
-        z_batch, _, _ = self.vae.encoder_forward(data)
+        z_batch, _, _ = self.vae.encode(data)
         return z_batch.cpu()
 
 

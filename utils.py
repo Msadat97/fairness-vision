@@ -1,6 +1,6 @@
 import torch
 from sklearn.metrics import accuracy_score
-from model import VAE
+from models import VAE
 from torch.utils.data import TensorDataset, DataLoader
 
 
@@ -11,7 +11,7 @@ def get_latents(vae: VAE, data_loader: DataLoader, shuffle, device=torch.device(
         inputs, targets = batch
         inputs = inputs.to(device)
         targets = targets.to(device)
-        z_batch, _, _ = vae.encoder_forward(inputs)
+        z_batch, _, _ = vae.encode(inputs)
         z_list.append(z_batch)
         y_list.append(targets)
     z_tensor = torch.cat(z_list)

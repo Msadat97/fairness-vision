@@ -8,7 +8,7 @@ import tensorflow as tf
 from torch.utils.data import TensorDataset
 from torch import optim
 from mnist import MnistLoader
-from model import VAE, LatentEncoder
+from models import VAE, LatentEncoder
 from train import VAETrainer, LatentTrainer
 from torch import nn
 

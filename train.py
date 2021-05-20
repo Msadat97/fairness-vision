@@ -87,7 +87,7 @@ class VAETrainer(object):
         return loss, batch_size
 
     def vae_loss(self, inputs, targets, mu, log_var):
-        image_size = self.vae.input_shape[-1]
+        image_size = self.vae.input_dim[-1]
         reconstruction_loss = nn.BCELoss()(inputs, targets)
         reconstruction_loss *= image_size ** 2
         kl_loss = 1 + log_var - torch.square(mu) - torch.exp(log_var)

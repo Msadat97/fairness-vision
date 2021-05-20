@@ -9,7 +9,7 @@ import tensorflow as tf
 from torch.utils.data import TensorDataset
 from torch import optim
 from mnist import MnistLoader
-from model import VAE, LatentEncoder, concat
+from models import VAE, LatentEncoder, concat
 from train import VAETrainer, vae_loss
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,8 +41,8 @@ clf.cuda()
 
 vae.eval()
 x_train = data.get_data('x_train').cuda()
-z, _, _ = vae.encoder_forward(x_train[18:19])
-im = vae.decoder_forward(z).detach().cpu()
+z, _, _ = vae.encode(x_train[18:19])
+im = vae.decode(z).detach().cpu()
 im_to_show = im.numpy()[0, 0]
 plt.imshow(im_to_show)
 plt.show()

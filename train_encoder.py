@@ -7,7 +7,7 @@ from tqdm import tqdm
 from mnist import MnistLoader
 from lcifr.code.constraints import GeneralCategoricalConstraint
 from dl2.training.supervised.oracles import DL2_Oracle
-from model import VAE, LatentEncoder, AutoEncoder, LatentClassifier
+from models import VAE, LatentEncoder, AutoEncoder, LatentClassifier
 from lcifr.code.utils.statistics import Statistics
 from utils import get_latents
 from metrics import accuracy

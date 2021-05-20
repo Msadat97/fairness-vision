@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 from mnist import MnistLoader
 from lcifr.code.attacks import PGD
-from model import VAE, LatentClassifier, AutoEncoder, LatentEncoder
+from models import VAE, LatentClassifier, AutoEncoder, LatentEncoder
 from dl2.training.supervised.oracles import DL2_Oracle
 from lcifr.code.experiments.args_factory import get_args
 from lcifr.code.constraints.general_categorical_constraint import GeneralCategoricalConstraint, SegmentConstraint

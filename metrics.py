@@ -4,7 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from attack import PGD, SegmentPDG
-from model import DataModel
+from models import DataModel
 from tqdm import tqdm
 from smoothing import MeanSmoothing
 

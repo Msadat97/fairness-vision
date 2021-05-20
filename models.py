@@ -2,6 +2,7 @@ from abc import abstractmethod
 import torch
 import torch.nn as nn
 import numpy as np 
+from torch.distributions import Bernoulli
 
 
 class BaseVAE(nn.Module):
@@ -18,7 +19,7 @@ class BaseVAE(nn.Module):
         return mu + torch.exp(0.5*log_var) * epsilon
     
     @abstractmethod
-    def encode(self, input):
+    def encode(self, inputs):
         raise NotImplemented
     
     @abstractmethod
@@ -29,11 +30,16 @@ class BaseVAE(nn.Module):
         z, mu, log_var = self.encoder(x)
         x_hat = self.decod(z)
         return x_hat, mu, log_var
+
+    def predict(self, z):
+        dist_param = self.decode(z)
+        dist = Bernoulli(dist_param)
+        return dist.sample()
     
 
-class LinearVAE(nn.Module):
+class LinearVAE(BaseVAE):
     def __init__(self, latent_dim=2, input_dim=(28, 28)) -> None:
-        super().__init__()
+        super().__init__(latent_dim, input_dim)
         self.latent_dim = latent_dim
         self.input_dim = input_dim
         self.flatten_dim = int(np.prod(input_dim))
@@ -54,39 +60,27 @@ class LinearVAE(nn.Module):
             nn.Linear(400, self.flatten_dim)
         )
 
-    def sampling(self, mu, log_var):
-        n_samples = mu.shape[0]
-        epsilon = torch.randn((n_samples, self.latent_dim))
-        if mu.is_cuda:
-            epsilon = epsilon.cuda()
-        return mu + torch.exp(0.5*log_var) * epsilon
-
-    def encoder_forward(self, x):
+    def encode(self, x):
         x = nn.Flatten()(x)
         x = self.encoder(x)
         mu, log_var = torch.chunk(x, chunks=2, dim=-1)
         z = self.sampling(mu, log_var)
         return z, mu, log_var
 
-    def decoder_forward(self, z):
+    def decode(self, z):
         x = self.decoder(z)
         x = torch.reshape(x, (x.shape[0], *self.input_dim))
         x = torch.sigmoid(x)
         return x
 
-    def forward(self, x):
-        z, mu, log_var = self.encoder_forward(x)
-        x_hat = self.decoder_forward(z)
-        return x_hat, mu, log_var
 
+class VAE(BaseVAE):
 
-class VAE(nn.Module):
-    
     def __init__(self, latent_dim=2, input_shape=(1, 1, 28, 28)):
         super().__init__()
         
-        self.latent_dimension = latent_dim
-        self.input_shape = input_shape
+        self.latent_dim = latent_dim
+        self.input_dim = input_shape
         
         self.cnn_encoder = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1),
@@ -102,11 +96,11 @@ class VAE(nn.Module):
         self.fc_encoder = nn.Sequential(
             nn.Linear(self.flatten_shape, 1024),
             nn.ReLU(),   
-            nn.Linear(in_features=1024, out_features=2*self.latent_dimension)
+            nn.Linear(in_features=1024, out_features=2*self.latent_dim)
         )
         
         self.fc_decoder = nn.Sequential(
-            nn.Linear(in_features=self.latent_dimension, out_features=1024),
+            nn.Linear(in_features=self.latent_dim, out_features=1024),
             nn.ReLU(),
             nn.BatchNorm1d(num_features=1024),
             nn.Linear(in_features=1024, out_features=self.flatten_shape),
@@ -124,18 +118,18 @@ class VAE(nn.Module):
         # self.output_decoder = nn.ConvTranspose2d(in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
 
     def get_shape(self):
-        x = torch.zeros(self.input_shape)
+        x = torch.zeros(self.input_dim)
         x = self.cnn_encoder(x)
         return x.shape[1:], torch.prod(torch.tensor(x.shape)).item()
     
     def sampling(self, mu, log_var):
         n_samples = mu.shape[0]
-        epsilon = torch.randn((n_samples, self.latent_dimension))
+        epsilon = torch.randn((n_samples, self.latent_dim))
         if mu.is_cuda:
             epsilon = epsilon.cuda()
         return mu + torch.exp(0.5*log_var) * epsilon
     
-    def encoder_forward(self, x):
+    def encode(self, x):
         x = self.cnn_encoder(x)
         x = torch.flatten(x, start_dim=1)
         x = self.fc_encoder(x)
@@ -143,18 +137,13 @@ class VAE(nn.Module):
         z = self.sampling(mu, log_var)
         return z, mu, log_var
     
-    def decoder_forward(self, z):
+    def decode(self, z):
         x = self.fc_decoder(z)
         x = torch.reshape(x, (x.shape[0], *self.shape))
         x = self.cnn_decoder(x)
-        # x = self.output_decoder(x)
         x = torch.sigmoid(x)
         return x
-    
-    def forward(self, x):
-        z, mu, log_var = self.encoder_forward(x)
-        x_hat = self.decoder_forward(z)
-        return x_hat, mu, log_var
+
 
 
 class Encoder(nn.Module):
@@ -252,7 +241,7 @@ class AutoEncoder(nn.Module):
         return self.encode(x)
 
     def encode(self, x):
-        x = self.vae.decoder_forward(x)
+        x = self.vae.decode(x)
         x = self.encoder.encode(x)
         x = torch.flatten(x, start_dim=1)
         return x
@@ -260,7 +249,7 @@ class AutoEncoder(nn.Module):
     def decode(self, x):
         x = x.reshape((-1, *self.encoder.shape))
         x = self.encoder.decode(x)
-        z, _, _ = self.vae.encoder_forward(x)
+        z, _, _ = self.vae.encode(x)
         return z
 
     def _freeze_vae(self):
