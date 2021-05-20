@@ -12,7 +12,8 @@ import os
 data_path = Path.cwd().joinpath('data')
 data_path.mkdir(parents=True, exist_ok=True)
 
-class CostumMNIST(Dataset):
+
+class CustomMNIST(Dataset):
     def __init__(self, train, vae: VAE = None, with_channel=False) -> None:
         super().__init__()
         self.dataset = MNIST(root=str(data_path), train=train, download=True)
@@ -30,13 +31,12 @@ class CostumMNIST(Dataset):
         if self.vae is not None:
             data = data[None, None, ...] if isinstance(index, int) else data[:, None, ...]
             data = self._get_latents(data)[0]
-            return (data, targets)
+            return data, targets
         else:
             if self.with_channel:
                 data = data[None, ...] if isinstance(index, int) else data[:, None, ...]
-            return (data, targets)
-        
-    
+            return data, targets
+
     @torch.no_grad()
     def _get_latents(self, data):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
