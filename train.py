@@ -4,6 +4,7 @@ from tqdm.autonotebook import tqdm
 import torch
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from utils import get_label, accuracy
 
 
 class VAETrainer(object):
@@ -219,4 +220,11 @@ class LatentTrainer(object):
                 loop.write(f" Training loss:{training_loss:04f}, Accuracy:{training_acc}")
                 # loop.set_postfix(train_loss=0.5)
                 # loop.display(f'Loss: {training_loss}')
+    
+    def predict(self, inputs):
+        "rewrites the prediction method to be compatible with dataparallel modules"
+        if self.multi_gpu:
+            return self.model.module.predict(inputs)
+        else:
+            return self.model.predict(inputs)
     

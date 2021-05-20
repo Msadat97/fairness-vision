@@ -53,3 +53,4 @@ class CustomCelebA(Dataset):
 
 
 t = CustomCelebA()
+

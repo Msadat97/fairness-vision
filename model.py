@@ -1,12 +1,40 @@
+from abc import abstractmethod
 import torch
 import torch.nn as nn
+import numpy as np 
 
+class BaseVAE(nn.Module):
+    def __init__(self, latent_dim, input_dim):
+        super().__init__()
+        self.input_dim = input_dim
+        self.latent_dim = latent_dim
+    
+    def sampling(self, mu, log_var):
+        n_samples = mu.shape[0]
+        epsilon = torch.randn((n_samples, self.latent_dim))
+        if mu.is_cuda:
+            epsilon = epsilon.cuda()
+        return mu + torch.exp(0.5*log_var) * epsilon
+    
+    @abstractmethod
+    def encode(self, input):
+        raise NotImplemented
+    
+    @abstractmethod
+    def decode(self, z):
+        raise NotImplemented
+    
+    def forward(self, x):
+        z, mu, log_var = self.encoder(x)
+        x_hat = self.decod(z)
+        return x_hat, mu, log_var
+    
 
 class LinearVAE(nn.Module):
     def __init__(self, latent_dim=2, input_dim=(28, 28)) -> None:
         super().__init__()
-        self.latent_dimension = latent_dim
-        self.input_shape = input_dim
+        self.latent_dim = latent_dim
+        self.input_dim = input_dim
         self.flatten_dim = int(np.prod(input_dim))
 
         self.encoder = nn.Sequential(
@@ -14,11 +42,11 @@ class LinearVAE(nn.Module):
             nn.ReLU(),
             nn.Linear(400, 300),
             nn.ReLU(),
-            nn.Linear(300, 2*self.latent_dimension)
+            nn.Linear(300, 2*self.latent_dim)
         )
 
         self.decoder = nn.Sequential(
-            nn.Linear(self.latent_dimension, 300),
+            nn.Linear(self.latent_dim, 300),
             nn.ReLU(),
             nn.Linear(300, 400),
             nn.ReLU(),
@@ -27,7 +55,7 @@ class LinearVAE(nn.Module):
 
     def sampling(self, mu, log_var):
         n_samples = mu.shape[0]
-        epsilon = torch.randn((n_samples, self.latent_dimension))
+        epsilon = torch.randn((n_samples, self.latent_dim))
         if mu.is_cuda:
             epsilon = epsilon.cuda()
         return mu + torch.exp(0.5*log_var) * epsilon
@@ -41,7 +69,7 @@ class LinearVAE(nn.Module):
 
     def decoder_forward(self, z):
         x = self.decoder(z)
-        x = torch.reshape(x, (x.shape[0], *self.input_shape))
+        x = torch.reshape(x, (x.shape[0], *self.input_dim))
         x = torch.sigmoid(x)
         return x
 
