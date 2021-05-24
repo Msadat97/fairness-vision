@@ -1,17 +1,20 @@
 from pathlib import Path
+
+from torch.functional import split
 from models import BaseVAE
 from torch.utils.data import Dataset
 from torchvision.datasets import MNIST, CelebA
 import torch
+import tensorflow_datasets as tfds
 
-data_path = Path.cwd().joinpath('data')
-data_path.mkdir(parents=True, exist_ok=True)
+DATA_PATH = Path.cwd().joinpath('data')
+DATA_PATH.mkdir(parents=True, exist_ok=True)
 
 
 class CustomMNIST(Dataset):
     def __init__(self, train, with_channel=False) -> None:
         super().__init__()
-        self.dataset = MNIST(root=str(data_path), train=train, download=True)
+        self.dataset = MNIST(root=str(DATA_PATH), train=train, download=True)
         self.with_channel = with_channel
         
     def __len__(self):
@@ -29,7 +32,13 @@ class CustomMNIST(Dataset):
 class CustomCelebA(Dataset):
     def __init__(self, split='train') -> None:
         super().__init__()
-        self.data = CelebA(root=str(data_path), split=split, download=True)
+        self.data = CelebA(root=str(DATA_PATH), split=split, download=False)
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, index):
+        pass
 
 
 class VAEWrapper(Dataset):
@@ -57,3 +66,5 @@ class VAEWrapper(Dataset):
         data = data.to(self.device)
         z_batch, _, _ = self.vae.encode(data)
         return z_batch.cpu()
+
+t = CustomCelebA()
