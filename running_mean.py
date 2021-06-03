@@ -1,6 +1,5 @@
-import torch 
-
-tensor = torch.Tensor
+from typing import Tuple
+import numpy as np
 
 
 class RunningMean(object):
@@ -11,17 +10,17 @@ class RunningMean(object):
         :param shape: the shape of the data stream's output
         [Taken mainly from stable-baselines3 package]
         """
-        self.mean = torch.zeros(shape, device='cpu')
+        self.mean = np.zeros(shape)
         self.count = epsilon
+        self.sum = self.mean*self.count
 
-    @torch.no_grad()
-    def update(self, arr: tensor) -> None:
-        arr = arr.detach().cpu()
-        batch_mean = torch.mean(arr, axis=0)
+    def update(self, arr: np.ndarray) -> None:
+        batch_mean = np.mean(arr, axis=0)
         batch_count = arr.shape[0]
         self.update_from_moments(batch_mean, batch_count)
 
-    def update_from_moments(self, batch_mean: tensor, batch_count: int) -> None:
+    def update_from_moments(self, batch_mean: np.ndarray, batch_count: int) -> None:
         self.mean = (self.mean * self.count + batch_mean *
                      batch_count)/(self.count + batch_count)
         self.count = batch_count + self.count
+        self.sum = self.mean*self.count

@@ -1,0 +1,10 @@
+{
+    "exp_id": 1,
+    "save_path": "logs/",
+    "train":
+    {
+        "x": 1,
+        "y": 2
+
+    }
+}

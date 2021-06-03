@@ -3,6 +3,53 @@ import torch
 import torch.nn as nn
 import numpy as np 
 from torch.distributions import Bernoulli
+from torch.nn import modules
+from torch.nn.modules import module
+from torch.nn.modules.activation import ReLU
+from torch.nn import init
+
+
+def kaiming_init(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        init.kaiming_normal_(m.weight)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+    elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+        m.weight.data.fill_(1)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+
+
+def fc_block(in_features, out_features, use_bn=True, use_relu=True):
+    moduels = [nn.Linear(in_features, out_features)]
+    if use_bn:
+        moduels.append(nn.BatchNorm1d(out_features))
+    if use_relu:
+        moduels.append(nn.ReLU(True))
+    return nn.ModuleList(moduels)
+
+
+def conv_block(in_channels, out_channels, kernel_size, 
+               stride=1, padding=0, 
+               use_bn=True, use_relu=True):
+    modules = [nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)]
+    if use_bn:
+        modules.append(nn.BatchNorm2d(out_channels))
+    if use_relu:
+        modules.append(nn.ReLU(True))
+    return nn.ModuleList(modules)
+
+
+def deconv_block(in_channels, out_channels, kernel_size, 
+                 stride=1, padding=0, output_padding=0, 
+                 use_bn=True, use_relu=True):
+    moduels = [nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding, output_padding)]
+    if use_bn:
+        moduels.append(nn.BatchNorm2d(out_channels))
+    if use_relu:
+        moduels.append(nn.ReLU(True))
+    return nn.ModuleList(moduels)
+
 
 
 class BaseVAE(nn.Module):
@@ -27,11 +74,11 @@ class BaseVAE(nn.Module):
         raise NotImplemented
     
     def forward(self, x):
-        z, mu, log_var = self.encoder(x)
-        x_hat = self.decod(z)
+        z, mu, log_var = self.encode(x)
+        x_hat = self.decode(z)
         return x_hat, mu, log_var
 
-    def predict(self, z):
+    def dist_predict(self, z):
         dist_param = self.decode(z)
         dist = Bernoulli(dist_param)
         return dist.sample()
@@ -42,10 +89,10 @@ class LinearVAE(BaseVAE):
         super().__init__(latent_dim, input_dim)
         self.latent_dim = latent_dim
         self.input_dim = input_dim
-        self.flatten_dim = int(np.prod(input_dim))
+        flatten_dim = int(np.prod(input_dim))
 
         self.encoder = nn.Sequential(
-            nn.Linear(self.flatten_dim, 400),
+            nn.Linear(flatten_dim, 400),
             nn.ReLU(),
             nn.Linear(400, 300),
             nn.ReLU(),
@@ -76,14 +123,14 @@ class LinearVAE(BaseVAE):
 
 class VAE(BaseVAE):
 
-    def __init__(self, latent_dim=2, input_dim=(1, 1, 28, 28)):
+    def __init__(self, latent_dim=2, input_dim=(1, 28, 28)):
         super().__init__(latent_dim, input_dim)
         
         self.latent_dim = latent_dim
         self.input_dim = input_dim
         
         self.cnn_encoder = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=1),
+            nn.Conv2d(in_channels=self.input_dim[0], out_channels=32, kernel_size=5, stride=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding=1),
@@ -112,22 +159,16 @@ class VAE(BaseVAE):
             nn.ConvTranspose2d(in_channels=64, out_channels=64, kernel_size=4, stride=2, output_padding=1),
             nn.ReLU(),
             nn.BatchNorm2d(num_features=64),
-            nn.ConvTranspose2d(in_channels=64, out_channels=1, kernel_size=4, stride=2),
+            nn.ConvTranspose2d(in_channels=64, out_channels=self.input_dim[0], kernel_size=4, stride=2),
         )
         
         # self.output_decoder = nn.ConvTranspose2d(in_channels=32, out_channels=1, kernel_size=4, stride=2, padding=1)
 
     def get_shape(self):
-        x = torch.zeros(self.input_dim)
+        x = torch.zeros(1, *self.input_dim)
         x = self.cnn_encoder(x)
         return x.shape[1:], torch.prod(torch.tensor(x.shape)).item()
     
-    def sampling(self, mu, log_var):
-        n_samples = mu.shape[0]
-        epsilon = torch.randn((n_samples, self.latent_dim))
-        if mu.is_cuda:
-            epsilon = epsilon.cuda()
-        return mu + torch.exp(0.5*log_var) * epsilon
     
     def encode(self, x):
         x = self.cnn_encoder(x)
@@ -144,6 +185,166 @@ class VAE(BaseVAE):
         x = torch.sigmoid(x)
         return x
 
+
+
+class CelebaVAE(BaseVAE):
+    def __init__(self, latent_dim, input_dim):
+        super().__init__(latent_dim, input_dim)
+
+        self.latent_dim = latent_dim
+        self.input_dim = input_dim
+        
+        hidden_dims = [3, 32, 32, 64, 64]
+        
+        modules = []
+        for i, _ in enumerate(hidden_dims[:-1]): 
+            modules.extend(
+                conv_block(in_channels=hidden_dims[i], out_channels=hidden_dims[i+1],
+                           kernel_size=4, stride=2, padding=1, use_bn=False)
+            )
+        
+        modules.extend(
+            conv_block(in_channels=hidden_dims[-1], out_channels=256,
+                       kernel_size=4, stride=1, padding=0, use_bn=False)
+        )
+        
+        self.cnn_encoder = nn.Sequential(*modules)
+        
+        self.shape, self.flatten_shape = self.get_shape()
+        
+        # modules = []
+        # modules.extend(fc_block(in_features=self.flatten_shape, out_features=256, use_bn=False))
+        # modules.extend(fc_block(in_features=256, out_features=256, use_bn=False))
+        # modules.extend(fc_block(in_features=256, out_features=self.latent_dim*2, use_bn=False))
+            
+        self.fc_encoder = nn.Linear(in_features=self.flatten_shape, out_features=self.latent_dim*2)
+        
+        
+        
+        # modules = []
+        # modules.extend(fc_block(in_features=self.latent_dim, out_features=256, use_bn=False))
+        # modules.extend(fc_block(in_features=256, out_features=256, use_bn=False))
+        # modules.extend(fc_block(in_features=256, out_features=self.flatten_shape, use_bn=False))
+        
+        self.fc_decoder = nn.Linear(in_features=self.latent_dim, out_features=self.flatten_shape)
+        
+        
+        hidden_dims.reverse()
+        modules = []
+        modules.extend(
+            deconv_block(in_channels=256, out_channels=hidden_dims[0], 
+                         kernel_size=4, stride=1, padding=0, use_bn=False)
+        )
+        
+        for i, _ in enumerate(hidden_dims[:-2]):
+            
+            # # adding output_padding to one layer before the last layer.
+            # output_padding = 1 if i == len(hidden_dims) - 3 else 0
+            modules.extend(
+                deconv_block(in_channels=hidden_dims[i], out_channels=hidden_dims[i+1],
+                             kernel_size=4, stride=2, padding=1,  use_bn=False)
+            )
+        
+        modules.append(
+            nn.ConvTranspose2d(in_channels=hidden_dims[-2], out_channels=hidden_dims[-1], 
+                               kernel_size=4, stride=2, padding=1)
+        )
+        
+        self.cnn_decoder = nn.Sequential(*modules)
+        
+        self.apply(kaiming_init)
+
+    def get_shape(self):
+        x = torch.zeros(1, *self.input_dim)
+        x = self.cnn_encoder(x)
+        return x.shape[1:], torch.prod(torch.tensor(x.shape)).item()
+
+    def encode(self, x):
+        x = self.cnn_encoder(x)
+        x = torch.flatten(x, start_dim=1)
+        x = self.fc_encoder(x)
+        mu, log_var = torch.chunk(x, chunks=2, dim=-1)
+        z = self.sampling(mu, log_var)
+        return z, mu, log_var
+
+    def decode(self, z):
+        x = self.fc_decoder(z)
+        x = torch.reshape(x, (x.shape[0], *self.shape))
+        x = self.cnn_decoder(x)
+        x = torch.sigmoid_(x)
+        return x
+
+
+class CelebaVAE(BaseVAE):
+    def __init__(self, latent_dim, input_dim):
+        super().__init__(latent_dim, input_dim)
+
+        self.latent_dim = latent_dim
+        self.input_dim = input_dim
+        
+        hidden_dims = [3, 32, 32, 64, 64]
+        
+        modules = []
+        for i, _ in enumerate(hidden_dims[:-1]): 
+            modules.extend(
+                conv_block(in_channels=hidden_dims[i], out_channels=hidden_dims[i+1],
+                           kernel_size=4, stride=2, padding=1, use_bn=False)
+            )
+        
+        modules.extend(
+            conv_block(in_channels=hidden_dims[-1], out_channels=256,
+                       kernel_size=4, stride=1, padding=0, use_bn=False)
+        )
+        
+        self.cnn_encoder = nn.Sequential(*modules)
+        
+        self.shape, self.flatten_shape = self.get_shape()
+            
+        self.fc_encoder = nn.Linear(in_features=self.flatten_shape, out_features=self.latent_dim*2)
+        
+        self.fc_decoder = nn.Linear(in_features=self.latent_dim, out_features=self.flatten_shape)
+        
+        hidden_dims.reverse()
+        modules = []
+        modules.extend(
+            deconv_block(in_channels=256, out_channels=hidden_dims[0], 
+                         kernel_size=4, stride=1, padding=0, use_bn=False)
+        )
+        
+        for i, _ in enumerate(hidden_dims[:-2]):
+            modules.extend(
+                deconv_block(in_channels=hidden_dims[i], out_channels=hidden_dims[i+1],
+                             kernel_size=4, stride=2, padding=1,  use_bn=False)
+            )
+        
+        modules.append(
+            nn.ConvTranspose2d(in_channels=hidden_dims[-2], out_channels=hidden_dims[-1], 
+                               kernel_size=4, stride=2, padding=1)
+        )
+        
+        self.cnn_decoder = nn.Sequential(*modules)
+        
+        self.apply(kaiming_init)
+
+    def get_shape(self):
+        x = torch.zeros(1, *self.input_dim)
+        x = self.cnn_encoder(x)
+        return x.shape[1:], torch.prod(torch.tensor(x.shape)).item()
+
+    def encode(self, x):
+        x = self.cnn_encoder(x)
+        x = torch.flatten(x, start_dim=1)
+        x = self.fc_encoder(x)
+        mu, log_var = torch.chunk(x, chunks=2, dim=-1)
+        z = self.sampling(mu, log_var)
+        return z, mu, log_var
+
+    def decode(self, z):
+        x = self.fc_decoder(z)
+        x = torch.reshape(x, (x.shape[0], *self.shape))
+        x = self.cnn_decoder(x)
+        x = torch.sigmoid_(x)
+        return x
 
 
 class Encoder(nn.Module):
@@ -299,3 +500,41 @@ class DataModel(nn.Module):
     def freeze(self):
         for param in self.parameters():
             param.requires_grad_(False)
+
+
+class ClassifierCelebA(nn.Module):
+    def __init__(self, input_dim):
+        super().__init__()
+        self.input_dim = input_dim
+        
+        filters = [3, 64, 64, 128, 128, 256, 256]
+        
+        modules = []
+        for i, _ in enumerate(filters[:-1]):
+            modules.extend(
+                conv_block(in_channels=filters[i], out_channels=filters[i+1],
+                            kernel_size=4, stride=2, padding=1)
+            )
+        self.cnn = nn.Sequential(*modules)
+        
+        self.shape, self.flatten_shape = self.get_shape()
+        self.classifier = nn.Sequential(
+            *fc_block(in_features=self.flatten_shape, out_features=1024),
+            nn.Linear(in_features=1024, out_features=1)
+        )
+    
+    @torch.no_grad()
+    def get_shape(self):
+        self.eval()
+        x = torch.zeros(1, *self.input_dim)
+        x = self.cnn(x)
+        return tuple(x.shape[1:]), np.prod(x.shape)
+    
+    def forward(self, x):
+        x = self.cnn(x).flatten(1)
+        x = self.classifier(x)
+        return x.ravel()
+    
+    def predict(self, x):
+        logits = self.forward(x)
+        return torch.where(logits > 0, 1.0, 0.0)
