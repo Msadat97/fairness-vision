@@ -1,10 +1,42 @@
 {
     "exp_id": 1,
-    "save_path": "logs/",
-    "train":
-    {
-        "x": 1,
-        "y": 2
 
+    "log_path": "logs/",
+
+    "celeba":{
+        "image_size": 64,
+        "attribite": "blond_hair"
+    },
+    
+    "vae_experiment":{
+        "learning_rate": 1e-5,
+        "batch_size": 32,
+        "latent_dim": 32
+    },
+
+    "lcifr_experiment":{
+        "learning_rate": 1e-4,
+        "dl2_lr": 0.0001,
+        "patience": 3,
+        "weight_decay": 0.01,
+        "dl2_iters": 25,
+        "dl2_weight": 5,
+        "num_epochs_encoder" : 10,
+        "num_epochs_classifier" : 2,
+        "base_run": false,
+        "batch_size": 128,
+        "num_workers": 6,
+        "delta": 0.01,
+        "epsilon": 1.0,
+        "latent_index": 29
+    },
+
+    "celeba_save_path":{ 
+        "vae": "./saved_models/celeba-vae-bce-v0",
+        "base_autoencoder": "./saved_models/celeba-autoencoder-base-v1",
+        "lcifr_autoencoder": "./saved_models/celeba-autoencoder-lcifr-v1",
+        "base_classifier": "./saved_models/celeba-classifier",
+        "robust_classifier": "./saved_models/celeba-classifier-robust-v1"
     }
+
 }

@@ -1,11 +1,16 @@
-from pathlib import Path
-import torch
-from sklearn.metrics import accuracy_score
-from models import VAE
-from torch.utils.data import TensorDataset, DataLoader
-from torch.utils.tensorboard import SummaryWriter
-import shutil
 import json
+import shutil
+from pathlib import Path
+
+import imageio
+import numpy as np
+import torch
+from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.tensorboard import SummaryWriter
+from torchvision import transforms
+
+from models import VAE
+
 
 def get_latents(vae: VAE, data_loader: DataLoader, shuffle, device=torch.device('cpu')):
     z_list = []
@@ -24,20 +29,12 @@ def get_latents(vae: VAE, data_loader: DataLoader, shuffle, device=torch.device(
     return DataLoader(data_set, batch_size=batch_size, shuffle=shuffle)
 
 
-
-def load_model(model: torch.nn.Module, model_path):
-    model.load_state_dict(
-        torch.load(model_path)
-    )
+def load(model, model_path):
+    model.load_state_dict(torch.load(model_path))
 
 
-def rmdir(directory):
-    for item in directory.iterdir():
-        if item.is_dir():
-            rmdir(item)
-        else:
-            item.unlink()
-    directory.rmdir()
+def save(model, model_path):
+    torch.save(model.state_dict(), model_path)
 
 
 def prepare_tensorboard(dir: str):
@@ -47,14 +44,6 @@ def prepare_tensorboard(dir: str):
     dir_path.mkdir(parents=True, exist_ok=True)
     tb = SummaryWriter(str(dir_path))
     return tb
-
-def pred1d(logits):
-    with torch.no_grad():
-        return torch.where(logits > 0, 1.0, 0.0)
-
-def predNd(logits):
-    with torch.no_grad():
-        return logits.argmax(1)
 
 
 def load_json(file_dir):
@@ -67,3 +56,23 @@ def get_celeba_att():
     att_list = att_list.lower().split()
     att_list = {att: idx for idx, att in enumerate(att_list)}
     return att_list
+
+
+def image_to_vid(images, path):
+    to_pil_image = transforms.ToPILImage()
+    imgs = [np.array(to_pil_image(img)) for img in images]
+    imageio.mimsave(path, imgs)
+
+
+def get_logdir(config):
+    dir = Path(config['log_path'])
+    exp_id = config['exp_id']
+    dir = dir.joinpath(f"run{exp_id}")
+    return str(dir)
+
+def prepare_config(path):
+    config = load_json(path)
+    im_size = config['celeba']['image_size']
+    config['celeba']['input_dim'] = (3, im_size, im_size)
+    
+    return config

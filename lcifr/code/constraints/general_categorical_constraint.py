@@ -62,7 +62,7 @@ class SegmentConstraint(AbstractConstraint):
     def get_domains(self, x_batches, _):
         assert len(x_batches) == 1
 
-        batch_size, num_features = x_batches[0].shape
+        _, num_features = x_batches[0].shape
         epsilon = torch.zeros(1, num_features).to(x_batches[0].device, dtype=x_batches[0].dtype)
         epsilon[0, self.latent_idx] = self.epsilon
         

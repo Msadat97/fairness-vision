@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union
 import numpy as np
 
 
@@ -14,7 +14,10 @@ class RunningMean(object):
         self.count = epsilon
         self.sum = self.mean*self.count
 
-    def update(self, arr: np.ndarray) -> None:
+    def update(self, arr) -> None:
+        arr = np.array(arr)
+        if arr.ndim == 0:
+            arr = arr[None]
         batch_mean = np.mean(arr, axis=0)
         batch_count = arr.shape[0]
         self.update_from_moments(batch_mean, batch_count)

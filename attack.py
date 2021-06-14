@@ -1,4 +1,3 @@
-from numpy.core import overrides
 import torch
 
 
@@ -18,8 +17,6 @@ class FGSM(object):
         images_.requires_grad_()
 
         logits = self.model(images_)
-        if logits.ndim == 1:
-            logits = logits.unsqueeze(0)
         self.model.zero_grad()
         loss = self.loss_fn(logits, targets, reduction='sum')
         loss.backward()

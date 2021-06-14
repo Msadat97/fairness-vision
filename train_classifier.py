@@ -9,61 +9,101 @@ from models import VAE, LatentClassifier, AutoEncoder, LatentEncoder
 from dl2.training.supervised.oracles import DL2_Oracle
 from lcifr.code.experiments.args_factory import get_args
 from lcifr.code.constraints.general_categorical_constraint import GeneralCategoricalConstraint, SegmentConstraint
-from utils import accuracy, get_latents
+from utils import load, prepare_config
 from attack import SegmentPDG
+from celeba_models import CelebaVAE, EncoderCelebA, ClassifierCelebA, AutoEncoderCelebA
+from datasets import CustomCelebA, VAEWrapper
+from torch.utils.data import DataLoader
+from metrics import accuracy, balanced_accuracy
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-vae_path = "saved_models/vae-state-dict-v3"
-ae_path = "saved_models/vae-base-trained-v1"
-classifier_path = "saved_models/base-classifier-v0"
+config = prepare_config('./metadata.json')
+vae_path = config["celeba_save_path"]['vae']
+ae_path = config["celeba_save_path"]['lcifr_autoencoder']
+classifier_path = config["celeba_save_path"]['robust_classifier']
 
 # parameters
-lr = 1e-3
-dl2_lr = 2.5
-patience = 3
-weight_decay = 0.01
-dl2_iters = 25
-dl2_weight = 10.0
-dec_weight = 0.0
-num_epochs = 5
-delta = 0.005
-epsilon = 0.5
+# parameters
+lr = config['lcifr_experiment']['learning_rate']
+dl2_lr = config['lcifr_experiment']['dl2_lr']
+patience = config['lcifr_experiment']['patience']
+weight_decay = config['lcifr_experiment']['weight_decay']
+dl2_iters = config['lcifr_experiment']['dl2_iters']
+dl2_weight = config['lcifr_experiment']['dl2_weight']
+num_epochs = config['lcifr_experiment']['num_epochs_classifier']
 args = get_args()
-args.adversarial = False
+args.adversarial = True
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-vae = VAE(latent_dim=16)
-vae.load_state_dict(
-    torch.load(
-        vae_path, map_location=torch.device('cpu')
-        )
-    )
+# vae = CelebaVAE(latent_dim=16)
+# vae.load_state_dict(
+#     torch.load(
+#         vae_path, map_location=torch.device('cpu')
+#         )
+#     )
+# vae.to(device)
+
+# latent_encoder = EncoderCelebA()
+# latent_encoder.to(device)
+
+# autoencoder = AutoEncoderCelebA(vae, latent_encoder)
+# autoencoder.to(device)
+
+# classifier = ClassifierCelebA(
+#     latent_encoder.flatten_shape, latent_encoder.num_classes)
+# classifier.to(device)
+
+# for param in autoencoder.parameters():
+#     param.requires_grad_(False)
+
+# autoencoder.load_state_dict(
+#     torch.load(
+#         ae_path,
+#         map_location=lambda storage, loc: storage
+#     )
+# )
+
+# data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
+
+# train_loader, val_loader = data.train_loader, data.val_loader
+# train_loader = get_latents(vae=vae, data_loader=train_loader, shuffle=True, device=device)
+# val_loader = get_latents(vae=vae, data_loader=val_loader, shuffle=False, device=device)
+
+latent_dim = config['vae_experiment']['latent_dim']
+input_dim = config['celeba']['input_dim']
+
+vae = CelebaVAE(latent_dim=latent_dim, input_dim=input_dim)
+load(vae, vae_path)
 vae.to(device)
 
-latent_encoder = LatentEncoder()
+latent_encoder = EncoderCelebA(input_dim=input_dim)
 latent_encoder.to(device)
 
-autoencoder = AutoEncoder(vae, latent_encoder)
+autoencoder = AutoEncoderCelebA(vae, latent_encoder)
+load(autoencoder, ae_path)
 autoencoder.to(device)
 
-classifier = LatentClassifier(
-    latent_encoder.flatten_shape, latent_encoder.num_classes)
+classifier = ClassifierCelebA(1024)
 classifier.to(device)
 
-for param in autoencoder.parameters():
-    param.requires_grad_(False)
+# data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
+batch_size = config['lcifr_experiment']['batch_size']
+num_workers = config['lcifr_experiment']['num_workers']
 
-autoencoder.load_state_dict(
-    torch.load(
-        ae_path,
-        map_location=lambda storage, loc: storage
-    )
-)
+train_data, val_data = CustomCelebA(split='train'), CustomCelebA(split='valid')
+train_data = VAEWrapper(vae=vae, dataset=train_data)
+val_data = VAEWrapper(vae=vae, dataset=val_data)
 
-data = MnistLoader(batch_size=128, shuffle=True, normalize=False, split_ratio=0.8)
-train_loader, val_loader = data.train_loader, data.val_loader
-train_loader = get_latents(vae=vae, data_loader=train_loader, shuffle=True, device=device)
-val_loader = get_latents(vae=vae, data_loader=val_loader, shuffle=False, device=device)
+train_loader = DataLoader(train_data, batch_size=batch_size,
+                          num_workers=num_workers, shuffle=True, drop_last=True, pin_memory=True)
+val_loader = DataLoader(val_data, batch_size=batch_size,
+                        num_workers=num_workers, shuffle=False, drop_last=True, pin_memory=True)
+
+delta = config['lcifr_experiment']['delta']
+epsilon = config['lcifr_experiment']['epsilon']
+latent_index = config['lcifr_experiment']['latent_index']
 
 constraint = GeneralCategoricalConstraint(model=autoencoder, delta=delta, epsilon=epsilon)
 oracle = DL2_Oracle(
@@ -98,8 +138,8 @@ def run(autoencoder, classifier, optimizer, loader, split):
         batch_size = data_batch.shape[0]
         data_batch = data_batch.to(device)
         targets_batch = targets_batch.to(device)
-        targets_batch = targets_batch.type(torch.long)
-
+        targets_batch = targets_batch.long()
+                                          
         x_batches, y_batches = list(), list()
         assert batch_size % oracle.constraint.n_tvars == 0
         k = batch_size // oracle.constraint.n_tvars
@@ -132,7 +172,7 @@ def run(autoencoder, classifier, optimizer, loader, split):
             optimizer.step()
 
         tot_ce_loss.append(ce_loss.mean().item())
-        acc = accuracy(predictions, targets)
+        acc = balanced_accuracy(predictions, targets)
 
         progress_bar.set_description(
             f'[{split}] epoch={epoch:d}, ce_loss={np.mean(tot_ce_loss):.4f}, '
@@ -141,6 +181,9 @@ def run(autoencoder, classifier, optimizer, loader, split):
 
     predictions = torch.cat(predictions)
     targets = torch.cat(targets)
+    
+    # sns.histplot(predictions)
+    # plt.savefig('test.png')
 
     # accuracy = accuracy_score(targets, predictions)
     # balanced_accuracy = balanced_accuracy_score(targets, predictions)

@@ -7,7 +7,7 @@ from torch.nn import modules
 from torch.nn.modules import module
 from torch.nn.modules.activation import ReLU
 from torch.nn import init
-
+from torchvision import models
 
 def kaiming_init(m):
     if isinstance(m, (nn.Linear, nn.Conv2d)):
@@ -538,3 +538,17 @@ class ClassifierCelebA(nn.Module):
     def predict(self, x):
         logits = self.forward(x)
         return torch.where(logits > 0, 1.0, 0.0)
+
+
+# class ClassifierCelebA(nn.Module):
+#     def __init__(self, input_dim):
+#         super().__init__()
+#         self.input_dim = input_dim
+#         self.model = models.AlexNet(num_classes=1)
+
+#     def forward(self, x):
+#         return self.model(x).squeeze()
+
+#     def predict(self, x):
+#         logits = self.forward(x)
+#         return torch.where(logits > 0, 1.0, 0.0)

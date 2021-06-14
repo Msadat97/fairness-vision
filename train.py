@@ -11,10 +11,11 @@ from tqdm.autonotebook import tqdm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim.lr_scheduler import ExponentialLR
-from utils import prepare_tensorboard, pred1d
-from metrics import accuracy
+from torch.optim.lr_scheduler import ExponentialLR, ReduceLROnPlateau
+from utils import prepare_tensorboard, save
+from metrics import accuracy, balanced_accuracy
 from running_mean import RunningMean
+from torchmetrics import ConfusionMatrix
 
 tensor = torch.Tensor
 
@@ -27,6 +28,8 @@ class VAETrainer(object):
                  train_loader: DataLoader, 
                  val_loader: DataLoader = None,
                  multi_gpu: bool = False,
+                 save_path: str = None,
+                 use_mse: bool = False,
                  device=None,
                  beta=1) -> None:
          
@@ -36,10 +39,12 @@ class VAETrainer(object):
         self.val_loader = val_loader
         self.vae = model
         self.optimizer = optimizer
-        self.scheduler = ExponentialLR(self.optimizer, gamma=0.95)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=5, mode='min', threshold=1e-2, factor=0.5)
+        self.save_path = save_path
         
         # beta-vae parameters for loss function
         self.beta = beta
+        self.use_mse = use_mse
         
         if device is None:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -54,7 +59,7 @@ class VAETrainer(object):
         self.val_stat = defaultdict(lambda: 0.0)
         
 
-    def train(self, epochs=1):
+    def train(self, epochs):
         """
         Train the network
         """
@@ -99,10 +104,9 @@ class VAETrainer(object):
             tb.add_scalar("train-recon-loss", recon_loss, epoch)
             
             training_loss = np.sum(train_loss_list)/current_data_size
-            self.scheduler.step()
             self.train_stat[f'Epoch {epoch}'] = training_loss.item()
             
-            # torch.save(self.vae.state_dict(), 'saved_models/celeba-vae-state-dict-v4')
+            save(self.vae, self.save_path)
             
             loop = tqdm(
                 enumerate(self.val_loader),
@@ -137,6 +141,7 @@ class VAETrainer(object):
             tb.add_scalar("val-recon-loss", recon_loss, epoch)
         
         tb.close()
+        self.scheduler.step(val_loss)
     
     def run(self, split):
         
@@ -190,11 +195,15 @@ class VAETrainer(object):
         
         
     def vae_loss(self, inputs: tensor, targets: tensor, mu: tensor, log_var: tensor):
+    
+        if self.use_mse:
+            reconstruction_loss = F.mse_loss(inputs, targets, reduction='sum')
+        else:
+            reconstruction_loss = F.binary_cross_entropy(inputs, targets, reduction='sum')  
         
         batch_size = mu.shape[0]
-        reconstruction_loss = F.binary_cross_entropy(inputs, targets, reduction='sum')
-        # reconstruction_loss = F.mse_loss(inputs, targets, reduction='sum')
         reconstruction_loss /= batch_size
+        
         kl_loss = -0.5*(1 + log_var - mu.pow(2) - log_var.exp())
         kl_loss = kl_loss.sum(1).mean(0)
         loss = reconstruction_loss + self.beta * kl_loss
@@ -235,7 +244,7 @@ class ClassifierTrainer(object):
             
         self.model.to(self.device)
 
-    def train(self, epochs=20):
+    def train(self, epochs):
         """
         Train the network
         """
@@ -269,8 +278,8 @@ class ClassifierTrainer(object):
             else:
                 loss, acc = self.val_step(batch)
             
-            loss_stat.update(np.array([loss]))
-            acc_stat.update(np.array([acc]))
+            loss_stat.update(loss)
+            acc_stat.update(acc)
             loop.set_description(
                 f"[{split}] "
                 f"epoch={epoch:d}, "
@@ -282,11 +291,11 @@ class ClassifierTrainer(object):
         inputs, targets = batch
         inputs = inputs.to(self.device)
         targets = targets.to(self.device)
-        targets = targets.type(torch.float32)
+        targets = targets.long()
         logits = self.model(inputs)
         loss = self.loss_fn(logits, targets)
-        labels = pred1d(logits)
-        acc = accuracy(labels, targets)
+        labels = logits.argmax(1)
+        acc = balanced_accuracy(labels, targets)
         return loss, acc
     
     def train_step(self, batch):

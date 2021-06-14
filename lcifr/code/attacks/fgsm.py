@@ -14,8 +14,8 @@ class FGSM:
         images_.requires_grad_()
 
         logits = self.model(images_)
-        if logits.ndim == 1:
-            logits = logits.unsqueeze(0)
+        if logits.ndim == 2:
+            logits = logits.squeeze()
         self.model.zero_grad()
         loss = self.loss_fn(logits, targets, reduction='sum')
         loss.backward()
