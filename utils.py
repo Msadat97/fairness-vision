@@ -1,7 +1,12 @@
 import json
+import logging
 import shutil
+import sys
+import time
+from dataclasses import dataclass
+from os import stat
 from pathlib import Path
-
+import os
 import imageio
 import numpy as np
 import torch
@@ -9,10 +14,10 @@ from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 
-from models import VAE
+from models import BaseVAE
 
 
-def get_latents(vae: VAE, data_loader: DataLoader, shuffle, device=torch.device('cpu')):
+def get_latents(vae: BaseVAE, data_loader: DataLoader, shuffle, device=torch.device('cpu')):
     z_list = []
     y_list = []
     for batch in data_loader:
@@ -46,6 +51,11 @@ def prepare_tensorboard(dir: str):
     return tb
 
 
+def write_dict_tb(writer: SummaryWriter, stats: dict, epoch: int):
+    for key, val in stats.items():
+        writer.add_scalar()
+
+
 def load_json(file_dir):
     with open(file_dir, 'r') as f:
         return json.load(f)
@@ -70,9 +80,71 @@ def get_logdir(config):
     dir = dir.joinpath(f"run{exp_id}")
     return str(dir)
 
+
 def prepare_config(path):
     config = load_json(path)
     im_size = config['celeba']['image_size']
     config['celeba']['input_dim'] = (3, im_size, im_size)
     
     return config
+
+
+@dataclass
+class VAEStat:
+    epoch: int = 0
+    loss: float = 0.0
+    recon_loss: float = 0.0
+    kl_loss: float = 0.0
+    
+    def __repr__(self) -> str:
+        return f"epoch={self.epoch:<10} total-loss={self.loss:<20.5f} recon-loss={self.recon_loss:<20.5f} kl-loss={self.kl_loss:<20.5f}"
+    
+    def get_vals(self):
+        return tuple(self.__dict__.values())
+    
+    def get_names(self):
+        return tuple(self.__dict__.keys())
+        
+    def reset(self):
+        for key in self.__dict__.keys():
+            self.__setattr__(key, 0.0)
+    
+    def update(self, epoch, loss, recon_loss, kl_loss):
+        self.epoch = epoch
+        self.loss = loss
+        self.recon_loss = recon_loss
+        self.kl_loss = kl_loss
+
+
+class TensorBoardWriter:
+    def __init__(self, path) -> None:
+        self.patht = path
+        self.writer = prepare_tensorboard(path)
+
+    def add_dict_scaler(self, stat_dict: dict):
+        epoch = stat_dict.pop('epoch')
+        for key, val in stat_dict.items():
+            self.writer.add_scalar(key, val, epoch)
+
+    def add_dataclass_scaler(self, stat_dc):
+        stat_dict = vars(stat_dc)
+        self.add_dict_scaler(stat_dict)
+
+    def close(self):
+        self.writer.close()
+
+    def flush(self):
+        self.writer.flush()
+        self.writer = None
+
+
+class BasicLogger(object):
+    def __init__(self, save):
+        log_format = '%(message)s'
+        logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format)
+        fh = logging.FileHandler(os.path.join(save, 'log.txt'))
+        fh.setFormatter(logging.Formatter(log_format))
+        logging.getLogger().addHandler(fh)
+
+    def info(self, string, *args):
+        logging.info(string, *args)

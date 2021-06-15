@@ -173,7 +173,7 @@ def visualize_vae_outputs():
 if __name__ == "__main__":
     # size_output_test()
     # generate_random_image()
-    # train_vae()
-    train_classifier()
+    train_vae()
+    # train_classifier()
     # visualize_vae_outputs()
     # generate_dataset()
