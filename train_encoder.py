@@ -21,11 +21,12 @@ from mnist import MnistLoader
 from models import Encoder, VAE, AutoEncoder, LatentClassifier, LatentEncoder
 from celeba_models import CelebaVAE, ClassifierCelebA, EncoderCelebA, AutoEncoderCelebA
 from utils import get_latents, get_logdir, load, prepare_tensorboard, prepare_config
-
+from args import get_arguments
 
 config = prepare_config('./metadata.json')
 vae_path = config["celeba_save_path"]['vae']
 
+args = get_arguments()
 
 # parameters
 lr = config['lcifr_experiment']['learning_rate']
@@ -35,8 +36,7 @@ weight_decay = config['lcifr_experiment']['weight_decay']
 dl2_iters = config['lcifr_experiment']['dl2_iters']
 dl2_weight = config['lcifr_experiment']['dl2_weight']
 num_epochs = config['lcifr_experiment']['num_epochs_encoder']
-base_run = config['lcifr_experiment']['base_run']
-args = get_args()
+base_run = args.base
 
 if base_run:
     ae_path = config["celeba_save_path"]['base_autoencoder']
@@ -208,9 +208,5 @@ for epoch in range(num_epochs):
     torch.save(
         autoencoder.state_dict(), ae_path
     )
-    # torch.save(
-    #     classifier.state_dict(),
-    #     path.join(models_dir, f'classifier_{epoch}.pt')
-    # )
     
 writer.close()

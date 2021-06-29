@@ -64,28 +64,24 @@ def train_vae():
     vae = CelebaVAE(latent_dim=32, input_dim=dataset.image_size)
     vae.to(device)
     
-    # img_size = dataset.image_size
-    # print(vae)
-    # summary(vae, input_size=(batch_size, *img_size))
-    
-    optimizer = optim.Adam(vae.parameters(), lr=2.5e-4)
+    optimizer = optim.Adam(vae.parameters(), lr=1e-4)
     trainer = VAETrainer(vae, optimizer, train_loader=train_loader, val_loader=val_loader, 
-                         beta=10, save_path='saved_models/celeba-vae-bce-v0')
-    trainer.train(epochs=50)
+                         beta=10, save_path='./final-models/celeba-vae-bce-v1')
+    trainer.train(epochs=10)
 
 
 def generate_random_image():
     dataset = CustomCelebA(split='train')
     vae = CelebaVAE(latent_dim=32, input_dim=dataset.image_size)
     vae.to(device)
-    load(vae, 'saved_models/celeba-vae-bce-v0')
+    load(vae, './final-models/celeba-vae-bce-v0')
     vae.eval()
     index = np.random.randint(0, len(dataset))
     img = dataset[index][0].to(device)
     img = img[None, ...]
     
     z, _, _ = vae.encode(img)
-    for i in range(0, 32):
+    for i in trange(0, 32):
         Z = z.clone()
         img = vae.decode(z)[0]
         save_image(img, 'test.png')
@@ -97,15 +93,42 @@ def generate_random_image():
             img_list.append(img)
         image_to_vid(img_list, path=f'./visualization-outputs/comp{i}.gif')
 
+
+def generate_latent_interpolation(latent_index):
+    dataset = CustomCelebA(split='train')
+    vae = CelebaVAE(latent_dim=32, input_dim=dataset.image_size)
+    vae.to(device)
+    load(vae, './final-models/celeba-vae-bce-v0')
+    vae.eval()
+    index = np.random.randint(0, len(dataset))
+    img = dataset[index][0].to(device)
+    img = img[None, ...]
+
+    z, _, _ = vae.encode(img)
+    Z = z.clone()
+    img = vae.decode(z)[0]
+    save_image(img, 'test.png')
+    comps = torch.linspace(-3, 3, 8)
+    img_list = []
+    for comp in comps:
+        Z[:, latent_index] = comp
+        img = vae.decode(Z)
+        img_list.append(img)
+    
+    images = torch.cat(img_list, dim=0)
+    a = make_grid(images)
+    save_image(a, 'test.png')
+    
+    
 def generate_dataset():
     dset = CustomCelebA(split='train')
     img_size = dset.image_size
     vae = CelebaVAE(latent_dim=32, input_dim=img_size)
     vae.to(device)
-    load(vae, 'saved_models/celeba-vae-bce-v0')
+    load(vae, './final-models/celeba-vae-bce-v0')
     vae.eval()
     
-    for i in trange(10000):
+    for i in trange(10):
         z = torch.randn(1, 32, device=device)
         img = vae.decode(z)
         save_image(img, f"./data/fid_test/fake/{i}.jpg")
@@ -121,7 +144,7 @@ def train_classifier():
     
     vae = CelebaVAE(latent_dim=32, input_dim=img_size)
     vae.to(device)
-    load(vae, 'saved_models/celeba-vae-bce-v0')
+    load(vae, './final-models/celeba-vae-bce-v0')
     vae.eval()
     
     for param in vae.parameters():
@@ -157,23 +180,24 @@ def visualize_vae_outputs():
 
     vae = CelebaVAE(latent_dim=32, input_dim=img_size)
     vae.to(device)
-    load(vae, 'saved_models/celeba-vae-bce-v0')
+    load(vae, './final-models/celeba-vae-bce-v0')
     vae.eval()
 
     for param in vae.parameters():
-        param.requires_grad_(True)
+        param.requires_grad_(False)
         
-    train_dset = VAEWrapper(dataset=train_dset, vae=vae)
+    train_dset = VAEWrapper(dataset=train_dset, vae=vae, return_latent=False)
     train_loader = DataLoader(train_dset, batch_size=32, shuffle=False, drop_last=True)
     
-    images, _= next(iter(train_loader))
+    images, _ = next(iter(train_loader))
     a = make_grid(images)
     save_image(a, 'test.png')
 
 if __name__ == "__main__":
     # size_output_test()
     # generate_random_image()
-    train_vae()
+    # train_vae()
     # train_classifier()
     # visualize_vae_outputs()
     # generate_dataset()
+    generate_latent_interpolation(6)

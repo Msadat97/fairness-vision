@@ -125,10 +125,11 @@ class MeanSmoothing(object):
 
 
 class CenterSmoothing(object):
-    """A smoothed classifier g """
+    """A smoothed version of a function f """
 
     # to abstain, Smooth returns this int
     ABSTAIN = -1
+    ITER = 0
 
     def __init__(self,
                  base_classifier: torch.nn.Module,
@@ -154,9 +155,35 @@ class CenterSmoothing(object):
     def certify(self, x: tensor, m: int) -> Tuple[int, float]:
         raise NotImplemented
 
-    def predict(self, x: tensor, n: int) -> tensor:
-        raise NotImplemented
+    def predict(self, x: tensor, n: int, batch_size: int) -> tensor:
+        self.ITER += 1
+        Z = self._sample_noise(x, n, batch_size=batch_size)
+        delta1 = sqrt(1/(2*n) * log(2/self.alpha_1))
+        z = self._get_meb(Z)
+        Z = self._sample_noise(x, n, batch_size=batch_size)
+        p_delta1 = self._get_pdelta(Z)
+        delta2 = 0.5 - p_delta1
+        if self.delta < max(delta1, delta2):
+            if self.ITER > 10:
+                return self.ABSTAIN
+            else:
+                self.predict(x, n, batch_size)
+        else:
+            self.ITER = 0
+            return z
+                
+    def _get_meb(self, Z):
+        distance_mat = Z.pow(2).sum(1).reshape(-1, 1) + Z.pow(2).sum(1).reshape(1, -1) - 2 * Z @ (Z.T)
+        distance_mat.fill_diagonal_(0.0)
+        distance_mat.sqrt_()
+        values, _ = torch.median(distance_mat, dim=1)
+        index = values.argmin()
+        return Z[index.item()]
 
+    
+    def _get_pdelta(self, Z):
+        pass
+        
     @torch.no_grad()
     def _sample_noise(self, x: tensor, num: int, batch_size: int):
 
@@ -168,7 +195,7 @@ class CenterSmoothing(object):
 
             batch = x.repeat((this_batch_size, 1))
             noise = torch.randn_like(batch, device=self.device) * self.sigma
-            predictions.append(self.base_functino(batch + noise))
+            predictions.append(self.base_functino(batch + noise).cpu())
     
         return torch.cat(predictions, dim=0)
         

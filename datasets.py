@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, dataset
 from torchvision.datasets import MNIST, CelebA
 import torch
 from torchvision import transforms
-from utils import get_celeba_att
+from utils import get_celeba_att, prepare_config
 from tqdm import tqdm
 import os 
 import lmdb
@@ -20,12 +20,15 @@ from copy import deepcopy
 DATA_PATH = Path.cwd().joinpath('data')
 DATA_PATH.mkdir(parents=True, exist_ok=True)
 
+CONFIG = prepare_config("./metadata.json")
+
 def celeba_default_data_transforms():
+    image_size = CONFIG['celeba']['image_size']
     transform = transforms.Compose(
         [
             # transforms.RandomHorizontalFlip(),
             # transforms.CenterCrop(148),
-            transforms.Resize((64, 64)),
+            transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
         ]
     )
@@ -88,10 +91,11 @@ class CustomCelebA(Dataset):
             root = DATA_PATH.joinpath('celeba_lmdb')
         self.dataset = LMDBDataset(root=root, name='celeba', split=split, is_encoded=True)
         self.transform = celeba_default_data_transforms()
-        self.att_idx = get_celeba_att()['blond_hair']
-
-        self.image_size = self.__getitem__(0)[0].shape
-
+        img_size = CONFIG['celeba']['image_size']
+        self.image_size = (3, img_size, img_size)
+        att = CONFIG['celeba']['attribite']
+        self.att_idx = get_celeba_att()[att]
+        
     def __len__(self):
         return self.dataset.dataset_size
 
@@ -103,13 +107,14 @@ class CustomCelebA(Dataset):
 
 
 class VAEWrapper(Dataset):
-    def __init__(self, vae: BaseVAE, dataset: Dataset):
+    def __init__(self, vae: BaseVAE, dataset: Dataset, return_latent=True):
         super(VAEWrapper, self).__init__()
         # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.device = 'cpu'
         self.vae = deepcopy(vae)
         self.vae.to(self.device)
         self.dataset = dataset
+        self.return_latent = return_latent
         self.cached_data = {'data': [], 'target': []}
         # self._cache_data()
 
@@ -124,7 +129,9 @@ class VAEWrapper(Dataset):
             data = data[None, ...]
         assert data.ndim == 4
         latents = self._get_latents(data)
-        # img = self.vae.decode(latents)
+        if not self.return_latent:
+            img = self.vae.decode(latents)
+            return img[0], targets
         return latents[0], targets
     
     @torch.no_grad()   
@@ -144,7 +151,7 @@ class VAEWrapper(Dataset):
     @torch.no_grad()
     def _get_latents(self, data):
         data = data.to(self.device)
-        z_batch, _, _ = self.vae.encode(data)
+        ـ, z_batch, _ = self.vae.encode(data)
         return z_batch
 
 
@@ -183,5 +190,4 @@ class LMDBDataset(Dataset):
     def __len__(self):
         return self.dataset_size
     
-# x = CustomCelebA(root="./data/celeba64_lmdb")
-# print(x[0])
+x = CustomCelebA(root="./data/celeba_lmdb")

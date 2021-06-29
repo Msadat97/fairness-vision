@@ -1,17 +1,20 @@
 {
-    "exp_id": 1,
+    "exp_id": 2,
 
     "log_path": "logs/",
 
     "celeba":{
         "image_size": 64,
-        "attribite": "blond_hair"
+        "attribite": "smiling"
     },
     
     "vae_experiment":{
         "learning_rate": 1e-5,
         "batch_size": 32,
-        "latent_dim": 32
+        "latent_dim": 32,
+        "num_workers": 32,
+        "beta": 10,
+        "num_epochs": 50
     },
 
     "lcifr_experiment":{
@@ -21,22 +24,22 @@
         "weight_decay": 0.01,
         "dl2_iters": 25,
         "dl2_weight": 5,
-        "num_epochs_encoder" : 10,
+        "num_epochs_encoder" : 5,
         "num_epochs_classifier" : 2,
-        "base_run": false,
+        "base_run": true,
         "batch_size": 128,
-        "num_workers": 6,
+        "num_workers": 8,
         "delta": 0.01,
         "epsilon": 1.0,
-        "latent_index": 29
+        "latent_index": 27
     },
 
     "celeba_save_path":{ 
-        "vae": "./saved_models/celeba-vae-bce-v0",
-        "base_autoencoder": "./saved_models/celeba-autoencoder-base-v1",
-        "lcifr_autoencoder": "./saved_models/celeba-autoencoder-lcifr-v1",
-        "base_classifier": "./saved_models/celeba-classifier",
-        "robust_classifier": "./saved_models/celeba-classifier-robust-v1"
+        "vae": "./final-models/celeba-vae-bce-v0",
+        "base_autoencoder": "./final-models/celeba-autoencoder-base-smiling-v0",
+        "lcifr_autoencoder": "./final-models/celeba-autoencoder-lcifr-smiling-v0",
+        "base_classifier": "./final-models/celeba-classifier-base-smiling-v0",
+        "robust_classifier": "./final-models/celeba-classifier-robust-smiling-v0"
     }
 
 }

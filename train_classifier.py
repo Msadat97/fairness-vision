@@ -1,3 +1,4 @@
+from args import get_arguments
 import numpy as np
 import torch.nn as nn
 import torch.utils.data
@@ -18,12 +19,19 @@ from metrics import accuracy, balanced_accuracy
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+# defining flags:
+args = get_arguments()
+
 config = prepare_config('./metadata.json')
 vae_path = config["celeba_save_path"]['vae']
-ae_path = config["celeba_save_path"]['lcifr_autoencoder']
-classifier_path = config["celeba_save_path"]['robust_classifier']
 
-# parameters
+if args.robust:
+    ae_path = config["celeba_save_path"]['lcifr_autoencoder']
+    classifier_path = config["celeba_save_path"]['robust_classifier']
+else:
+    ae_path = config["celeba_save_path"]['base_autoencoder']
+    classifier_path = config["celeba_save_path"]['base_classifier']
+
 # parameters
 lr = config['lcifr_experiment']['learning_rate']
 dl2_lr = config['lcifr_experiment']['dl2_lr']
@@ -32,11 +40,10 @@ weight_decay = config['lcifr_experiment']['weight_decay']
 dl2_iters = config['lcifr_experiment']['dl2_iters']
 dl2_weight = config['lcifr_experiment']['dl2_weight']
 num_epochs = config['lcifr_experiment']['num_epochs_classifier']
-args = get_args()
-args.adversarial = True
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+#### this part is for experimenting on mnist
 # vae = CelebaVAE(latent_dim=16)
 # vae.load_state_dict(
 #     torch.load(
@@ -105,12 +112,6 @@ delta = config['lcifr_experiment']['delta']
 epsilon = config['lcifr_experiment']['epsilon']
 latent_index = config['lcifr_experiment']['latent_index']
 
-constraint = GeneralCategoricalConstraint(model=autoencoder, delta=delta, epsilon=epsilon)
-oracle = DL2_Oracle(
-    learning_rate=args.dl2_lr, net=autoencoder,
-    use_cuda=torch.cuda.is_available(),
-    constraint=constraint
-)
 
 cre_loss = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(
@@ -128,7 +129,7 @@ def run(autoencoder, classifier, optimizer, loader, split):
 
     progress_bar = tqdm(loader)
 
-    if args.adversarial:
+    if args.robust:
         attack = PGD(
             classifier, delta, F.cross_entropy,
             clip_min=float('-inf'), clip_max=float('inf')
@@ -139,21 +140,13 @@ def run(autoencoder, classifier, optimizer, loader, split):
         data_batch = data_batch.to(device)
         targets_batch = targets_batch.to(device)
         targets_batch = targets_batch.long()
-                                          
-        x_batches, y_batches = list(), list()
-        assert batch_size % oracle.constraint.n_tvars == 0
-        k = batch_size // oracle.constraint.n_tvars
-
-        for i in range(oracle.constraint.n_tvars):
-            x_batches.append(data_batch[i: i + k])
-            y_batches.append(targets_batch[i: i + k])
 
         if split == 'train':
             classifier.train()
 
         latent_data = autoencoder.encode(data_batch)
 
-        if args.adversarial:
+        if args.robust:
             latent_data = attack.attack(
                 delta / 10, latent_data, 20, targets_batch,
                 targeted=False, num_restarts=1, random_start=True

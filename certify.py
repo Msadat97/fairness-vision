@@ -1,26 +1,32 @@
-from datasets import CustomCelebA, VAEWrapper
-from celeba_models import AutoEncoderCelebA, CelebaVAE, ClassifierCelebA, EncoderCelebA
-from time import time
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.utils.data
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from mnist import MnistLoader
-from lcifr.code.attacks import PGD
-from models import VAE, LatentClassifier, AutoEncoder, LatentEncoder, DataModel
-from dl2.training.supervised.oracles import DL2_Oracle
-from lcifr.code.experiments.args_factory import get_args
-from lcifr.code.constraints.general_categorical_constraint import SegmentConstraint
-from utils import get_latents, load, prepare_config
-from attack import SegmentPDG
-from metrics import standard_accuracy, robust_accuracy, smoothing_accuracy
-from running_mean import RunningMean
 
+from args import get_arguments
+from attack import SegmentPDG
+from celeba_models import AutoEncoderCelebA, CelebaVAE, ClassifierCelebA, EncoderCelebA
+from datasets import CustomCelebA, VAEWrapper
+from lcifr.code.constraints.general_categorical_constraint import SegmentConstraint
+from lcifr.code.experiments.args_factory import get_args
+from metrics import robust_accuracy, smoothing_accuracy, standard_accuracy
+from mnist import MnistLoader
+from models import VAE, AutoEncoder, DataModel, LatentClassifier, LatentEncoder
+from utils import get_latents, load, prepare_config
+
+my_args = get_arguments()
+    
 config = prepare_config('./metadata.json')
 vae_path = config["celeba_save_path"]['vae']
-ae_path = config["celeba_save_path"]['lcifr_autoencoder']
-classifier_path = config["celeba_save_path"]['robust_classifier']
+
+if my_args.robust:
+    ae_path = config["celeba_save_path"]['lcifr_autoencoder']
+    classifier_path = config["celeba_save_path"]['robust_classifier']
+    
+else:
+    ae_path = config["celeba_save_path"]['base_autoencoder']
+    classifier_path = config["celeba_save_path"]['base_classifier']
+
+
 
 delta = config['lcifr_experiment']['delta']
 epsilon = config['lcifr_experiment']['epsilon']
@@ -99,9 +105,12 @@ train_loader = DataLoader(train_data, batch_size=batch_size,
 val_loader = DataLoader(val_data, batch_size=batch_size,
                         num_workers=num_workers, shuffle=False, drop_last=True, pin_memory=True)
 
-# robust = robust_accuracy(data_model, val_loader, epsilon, latent_index)
-# acc = standard_accuracy(data_model,  val_loader)
-# print(f'accuracy = {acc}')
-# print(f'robust-accuracy = {robust}')
 
-print(smoothing_accuracy(data_model, epsilon, val_loader, latent_index))
+acc = standard_accuracy(data_model,  val_loader)
+robust = robust_accuracy(data_model, val_loader, epsilon, latent_index)
+smooth = smoothing_accuracy(data_model, epsilon, val_loader, latent_index)
+
+print(f'accuracy = {acc["acc"]}\nbalanced_acc = {acc["balanced_acc"]}')
+print(f'robust_accuracy = {robust}')
+print(f'smoothed_accuracy = {smooth["acc"]}\nsmoothed_certified = {smooth["certified"]}')
+
