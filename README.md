@@ -51,4 +51,4 @@ sh run.sh
 ```
 
 ## Changing the experiments
-The experiment configurations can be modifier using ``metadata.json``.
+The experiment configurations can be modified using ``metadata.json``.
